@@ -307,7 +307,7 @@ The final output is a responsive Persian RTL HTML dashboard containing:
 
 A sample output is available here:
 
-[examples/digikala-sample-report.html](examples/digikala-sample-report.html)
+[examples/digikala-sample-report.html](examples/digikala-osint-report.html)
 
 ---
 
