@@ -1,0 +1,1873 @@
+<!DOCTYPE html>
+
+<html lang="fa" dir="rtl">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+/>
+
+<title>
+  گزارش مدیریتی OSINT دیجی‌کالا
+</title>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+
+  background: #f4f6f8;
+  color: #1f2937;
+
+  font-family:
+    Vazirmatn,
+    Tahoma,
+    "Segoe UI",
+    Arial,
+    sans-serif;
+
+  direction: rtl;
+  text-align: right;
+
+  line-height: 1.8;
+
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.container {
+  width: min(1180px, calc(100% - 32px));
+
+  margin:
+    32px auto 60px;
+}
+
+/* --------------------------------------------------
+   Hero / Header
+-------------------------------------------------- */
+
+.hero {
+  background: #111827;
+  color: white;
+
+  border-radius: 20px;
+
+  padding: 30px;
+
+  margin-bottom: 24px;
+
+  overflow: hidden;
+}
+
+.hero-main {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 36px;
+}
+
+.hero-content {
+  flex: 1;
+
+  min-width: 0;
+}
+
+.hero-logo {
+  flex: 0 0 auto;
+
+  width:
+    clamp(220px, 29vw, 360px);
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 0;
+}
+
+.hero-logo img {
+  display: block;
+
+  width: 100%;
+  height: auto;
+
+  max-height: 145px;
+
+  object-fit: contain;
+
+  /*
+    لوگو سفید روی زمینه مشکی است.
+    Screen باعث می‌شود زمینه مشکی
+    با سرمه‌ای هدر ترکیب شود.
+  */
+  mix-blend-mode: screen;
+
+  filter:
+    brightness(1.05)
+    contrast(1.05);
+}
+
+.hero h1 {
+  margin:
+    0 0 10px;
+
+  font-size:
+    clamp(22px, 4vw, 34px);
+
+  line-height: 1.5;
+
+  overflow-wrap: anywhere;
+}
+
+.hero p {
+  margin:
+    5px 0;
+
+  opacity: .82;
+}
+
+/* --------------------------------------------------
+   Navigation
+-------------------------------------------------- */
+
+.nav {
+  margin-top: 24px;
+
+  padding-top: 18px;
+
+  border-top:
+    1px solid rgba(255,255,255,.10);
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 8px;
+}
+
+.nav a {
+  color: white;
+
+  text-decoration: none;
+
+  padding:
+    7px 12px;
+
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,.12);
+
+  font-size: 13px;
+
+  transition:
+    background .2s ease;
+}
+
+.nav a:hover {
+  background:
+    rgba(255,255,255,.20);
+}
+
+/* --------------------------------------------------
+   Sections
+-------------------------------------------------- */
+
+.section {
+  background: white;
+
+  border-radius: 18px;
+
+  padding: 24px;
+
+  margin-bottom: 20px;
+
+  box-shadow:
+    0 2px 10px rgba(0,0,0,.035);
+}
+
+.section-title {
+  margin:
+    0 0 18px;
+
+  font-size: 20px;
+}
+
+/* --------------------------------------------------
+   KPI
+-------------------------------------------------- */
+
+.kpi-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(160px, 1fr)
+    );
+
+  gap: 12px;
+
+  margin-bottom: 20px;
+}
+
+.kpi-card {
+  background: white;
+
+  border:
+    1px solid #e5e7eb;
+
+  border-radius: 16px;
+
+  padding: 18px;
+
+  min-width: 0;
+
+  box-shadow:
+    0 2px 8px rgba(0,0,0,.025);
+}
+
+.kpi-label {
+  color: #6b7280;
+
+  font-size: 13px;
+}
+
+.kpi-value {
+  margin-top: 5px;
+
+  font-size: 28px;
+
+  font-weight: 700;
+}
+
+/* --------------------------------------------------
+   Cards
+-------------------------------------------------- */
+
+.insight-card,
+.competitor-card,
+.risk-card,
+.opportunity-card,
+.action-card,
+.review-card {
+
+  border:
+    1px solid #e5e7eb;
+
+  border-radius: 15px;
+
+  padding: 18px;
+
+  margin-bottom: 12px;
+
+  min-width: 0;
+}
+
+.risk-card {
+  border-right:
+    4px solid #ef4444;
+}
+
+.opportunity-card {
+  border-right:
+    4px solid #10b981;
+}
+
+.action-card {
+  border-right:
+    4px solid #3b82f6;
+}
+
+.review-card {
+  border-right:
+    4px solid #f59e0b;
+}
+
+.card-header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  flex-wrap: wrap;
+}
+
+.card-header strong {
+  min-width: 0;
+
+  flex: 1;
+
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------
+   Badges
+-------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+
+  align-items: center;
+
+  padding:
+    4px 10px;
+
+  border-radius: 999px;
+
+  font-size: 12px;
+
+  white-space: nowrap;
+}
+
+.badge.high {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge.low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge.neutral {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* --------------------------------------------------
+   Meta
+-------------------------------------------------- */
+
+.meta-row {
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap:
+    10px 20px;
+
+  color: #6b7280;
+
+  font-size: 13px;
+
+  margin-top: 10px;
+}
+
+/* --------------------------------------------------
+   Citations
+-------------------------------------------------- */
+
+.citations {
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 7px;
+
+  margin-top: 12px;
+}
+
+.citation {
+  background: #eff6ff;
+
+  color: #1d4ed8;
+
+  border-radius: 8px;
+
+  padding:
+    4px 8px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  text-decoration: none;
+}
+
+.citation:hover {
+  background: #dbeafe;
+}
+
+.citation.invalid {
+  background: #fee2e2;
+
+  color: #991b1b;
+}
+
+.citation.muted {
+  background: #f3f4f6;
+
+  color: #6b7280;
+}
+
+/* --------------------------------------------------
+   Accordion
+-------------------------------------------------- */
+
+.accordion {
+  border:
+    1px solid #e5e7eb;
+
+  border-radius: 14px;
+
+  margin-bottom: 10px;
+
+  overflow: hidden;
+}
+
+.accordion summary {
+  cursor: pointer;
+
+  padding:
+    15px 18px;
+
+  font-weight: 700;
+
+  background: #fafafa;
+}
+
+.accordion-body {
+  padding:
+    4px 18px 18px;
+}
+
+/* --------------------------------------------------
+   Buttons
+-------------------------------------------------- */
+
+.source-button {
+  display: inline-block;
+
+  background: #111827;
+
+  color: white;
+
+  text-decoration: none;
+
+  padding:
+    6px 11px;
+
+  border-radius: 8px;
+
+  font-size: 12px;
+
+  white-space: nowrap;
+}
+
+.source-button:hover {
+  opacity: .85;
+}
+
+/* --------------------------------------------------
+   Table
+-------------------------------------------------- */
+
+.table-wrapper {
+  width: 100%;
+
+  overflow-x: auto;
+
+  border:
+    1px solid #e5e7eb;
+
+  border-radius: 14px;
+}
+
+table {
+  width: 100%;
+
+  border-collapse: collapse;
+
+  min-width: 900px;
+}
+
+th,
+td {
+  padding:
+    12px 14px;
+
+  border-bottom:
+    1px solid #e5e7eb;
+
+  text-align: right;
+
+  vertical-align: middle;
+
+  font-size: 13px;
+}
+
+th {
+  background: #f9fafb;
+
+  position: sticky;
+
+  top: 0;
+
+  z-index: 1;
+}
+
+.title-cell {
+  max-width: 360px;
+
+  white-space: normal;
+
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------
+   Empty State
+-------------------------------------------------- */
+
+.empty-state {
+  padding: 18px;
+
+  background: #f9fafb;
+
+  border-radius: 12px;
+
+  color: #6b7280;
+}
+
+/* --------------------------------------------------
+   Footer
+-------------------------------------------------- */
+
+.footer {
+  text-align: center;
+
+  color: #6b7280;
+
+  font-size: 12px;
+
+  margin-top: 25px;
+}
+
+/* --------------------------------------------------
+   Responsive
+-------------------------------------------------- */
+
+@media (max-width: 700px) {
+
+  .container {
+    width:
+      min(100% - 18px, 1180px);
+
+    margin-top: 12px;
+  }
+
+  .hero,
+  .section {
+    border-radius: 14px;
+
+    padding: 18px;
+  }
+
+  .hero-main {
+    flex-direction: column;
+
+    align-items: stretch;
+
+    gap: 20px;
+  }
+
+  .hero-logo {
+    width:
+      min(280px, 80%);
+
+    margin:
+      8px auto 0;
+  }
+
+  .hero-logo img {
+    max-height: 110px;
+  }
+
+  .kpi-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .card-header {
+    flex-direction: column;
+  }
+
+  .nav {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 420px) {
+
+  .kpi-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+  .hero-logo {
+    width:
+      min(240px, 90%);
+  }
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+  <!-- ------------------------------------------------
+       Header
+  ------------------------------------------------- -->
+
+  <header class="hero">
+
+    <div class="hero-main">
+
+      <div class="hero-content">
+
+        <h1>
+          گزارش مدیریتی OSINT دیجی‌کالا
+        </h1>
+
+        <p>
+          شرکت:
+          <strong>
+            دیجی‌کالا
+          </strong>
+        </p>
+
+        <p>
+          بازه تحلیل:
+          14
+          روز اخیر
+        </p>
+
+        <p>
+          تولید گزارش:
+          ۸ شهریور ۱۴۰۵
+        </p>
+
+      </div>
+
+      <div class="hero-logo">
+
+        <img
+          src="https://dmboard.media/wp-content/uploads/2025/03/1-23.png"
+          alt="لوگوی گروه دیجی‌کالا"
+          loading="eager"
+        />
+
+      </div>
+
+    </div>
+
+    <nav class="nav">
+
+      <a href="#summary">
+        خلاصه مدیریتی
+      </a>
+
+      <a href="#topics">
+        موضوعات رسانه‌ای
+      </a>
+
+      <a href="#competitors">
+        رقبا
+      </a>
+
+      <a href="#risks">
+        ریسک‌ها
+      </a>
+
+      <a href="#opportunities">
+        فرصت‌ها
+      </a>
+
+      <a href="#actions">
+        اقدامات
+      </a>
+
+      <a href="#sources">
+        منابع
+      </a>
+
+    </nav>
+
+  </header>
+
+  <!-- KPI -->
+
+  
+  <div class="kpi-grid">
+
+    <div class="kpi-card">
+      <div class="kpi-label">اخبار معتبر</div>
+      <div class="kpi-value">
+        8
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">ریسک‌ها</div>
+      <div class="kpi-value">
+        1
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">فرصت‌ها</div>
+      <div class="kpi-value">
+        2
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">نیازمند بررسی</div>
+      <div class="kpi-value">
+        0
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">
+        حذف‌شده به‌عنوان نامرتبط
+      </div>
+
+      <div class="kpi-value">
+        0
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- Executive Summary -->
+
+  <section
+    class="section"
+    id="summary"
+  >
+
+    <h2 class="section-title">
+      خلاصه مدیریتی
+    </h2>
+
+    
+        <div class="insight-card">
+
+          <div class="insight-text">
+            دیجی‌کالا در سال ۱۴۰۵ پیشنهادهای جدید در حوزه هوش مصنوعی و فناوری تجربه خرید را ارائه کرده و رشد بازار تجارت الکترونیکی ایران را به ۱۰۰۰ میلیارد تومان تخمین زده است.
+          </div>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/digikala-virtual-try-on"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="دیجی‌کالا «پرو مجازی» را راه‌اندازی کرد"
+      >
+        SRC-005
+      </a>
+    
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/ecommerce-platforms-fair-competition-instagram-shops-iran-1403"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="مدیران پلتفرم‌های بزرگ: شرایط رقابت تجارت رسمی و ..."
+      >
+        SRC-002
+      </a>
+    
+          </div>
+
+        </div>
+      
+        <div class="insight-card">
+
+          <div class="insight-text">
+            مدیریت دیجی‌کالا با انتقال رئیس هیئت مدیره به حجت نیکی‌ملکی و راه‌اندازی قابلیت‌های پرو مجازی با هوش مصنوعی، فرصت‌های فناوری و تغییرات سازمانی را نشان می‌دهد.
+          </div>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/nikimaleki-chair-of-the-board-directors-digikala-group"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="حجت‌ نیکی‌ملکی رئیس هیئت مدیره گروه دیجی‌کالا شد"
+      >
+        SRC-001
+      </a>
+    
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/digikala-virtual-try-on"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="دیجی‌کالا «پرو مجازی» را راه‌اندازی کرد"
+      >
+        SRC-005
+      </a>
+    
+          </div>
+
+        </div>
+      
+        <div class="insight-card">
+
+          <div class="insight-text">
+            تحلیل رقابتی نشان می‌دهد که چالش‌های وارداتی و دشواری‌های عرضه رسمی بر رقابت با فروشگاه‌های شبکه‌های اجتماعی تأثیرگذار هستند.
+          </div>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/ecommerce-platforms-fair-competition-instagram-shops-iran-1403"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="مدیران پلتفرم‌های بزرگ: شرایط رقابت تجارت رسمی و ..."
+      >
+        SRC-002
+      </a>
+    
+          </div>
+
+        </div>
+      
+
+  </section>
+
+  <!-- Media Topics -->
+
+  <section
+    class="section"
+    id="topics"
+  >
+
+    <h2 class="section-title">
+      موضوعات رسانه‌ای دیجی‌کالا
+    </h2>
+
+    
+        <details class="accordion">
+
+          <summary>
+            فناوری هوش مصنوعی و تجربه خرید مجازی
+          </summary>
+
+          <div class="accordion-body">
+
+            <p>
+              دیجی‌کالا با راه‌اندازی قابلیت‌های پرو مجازی و آرایش مجازی با استفاده از هوش مصنوعی، تجربه خرید آنلاین را بهبود می‌دهد.
+            </p>
+
+            <div class="citations">
+              
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/digikala-virtual-try-on"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="دیجی‌کالا «پرو مجازی» را راه‌اندازی کرد"
+      >
+        SRC-005
+      </a>
+    
+            </div>
+
+          </div>
+
+        </details>
+      
+        <details class="accordion">
+
+          <summary>
+            رشد بازار تجارت الکترونیکی ایران
+          </summary>
+
+          <div class="accordion-body">
+
+            <p>
+              پیش‌بینی حجم تجارت الکترونیکی ایران بدون تندمصرف در سال ۱۴۰۵ به بیش از ۱۰۰۰ میلیارد تومان است.
+            </p>
+
+            <div class="citations">
+              
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/ecommerce-platforms-fair-competition-instagram-shops-iran-1403"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="مدیران پلتفرم‌های بزرگ: شرایط رقابت تجارت رسمی و ..."
+      >
+        SRC-002
+      </a>
+    
+            </div>
+
+          </div>
+
+        </details>
+      
+        <details class="accordion">
+
+          <summary>
+            تغییرات رهبری و ساختار شرکتی
+          </summary>
+
+          <div class="accordion-body">
+
+            <p>
+              انتخاب حجت نیکی‌ملکی به عنوان رئیس هیئت مدیره گروه دیجی‌کالا یک تغییر مهم در ساختار مدیریتی است.
+            </p>
+
+            <div class="citations">
+              
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/nikimaleki-chair-of-the-board-directors-digikala-group"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="حجت‌ نیکی‌ملکی رئیس هیئت مدیره گروه دیجی‌کالا شد"
+      >
+        SRC-001
+      </a>
+    
+            </div>
+
+          </div>
+
+        </details>
+      
+        <details class="accordion">
+
+          <summary>
+            توسعه محصولات تکنولوژیک
+          </summary>
+
+          <div class="accordion-body">
+
+            <p>
+              دیجی‌کالا راهنمای جامع خرید موتورهای برق و معرفی اکوسیستم طلا در بخش فین‌تک را ارائه کرده است.
+            </p>
+
+            <div class="citations">
+              
+      <a
+        class="citation"
+        href="https://digiato.com/buying-guide/electric-motor-buying-guide"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="راهنمای جامع خرید بهترین موتور برق؛ از خانگی تا کارگاهی"
+      >
+        SRC-006
+      </a>
+    
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/map-ecosystem-gold-1405"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="چه کسانی بازار طلای ایران را می‌سازند؟ نقشه اکوسیستم طلا در ..."
+      >
+        SRC-007
+      </a>
+    
+            </div>
+
+          </div>
+
+        </details>
+      
+        <details class="accordion">
+
+          <summary>
+            سرمایه‌گذاری بنیان‌گذاران
+          </summary>
+
+          <div class="accordion-body">
+
+            <p>
+              بنیان‌گذاران دیجی‌کالا ۲۵ درصد سهام دنسه را خریدند که ممکن است تأثیر بر استراتژی شرکت داشته باشد.
+            </p>
+
+            <div class="citations">
+              
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/digikala-founders-buy-shares-donse-group"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="بنیان‌گذاران دیجی‌کالا 25 درصد سهام دنسه را خریدند"
+      >
+        SRC-008
+      </a>
+    
+            </div>
+
+          </div>
+
+        </details>
+      
+
+  </section>
+
+  <!-- Competitors -->
+
+  <section
+    class="section"
+    id="competitors"
+  >
+
+    <h2 class="section-title">
+      تمرکز رقبا
+    </h2>
+
+    
+        <div class="competitor-card">
+
+          <div class="card-header">
+
+            <strong>
+              Torob
+            </strong>
+
+            <span class="badge neutral">
+              insufficient
+            </span>
+
+          </div>
+
+          <p>
+            هیچ مدرک مستقیم در گزارش‌های ارائه شده درباره تمرکز رقابتی این برند وجود ندارد.
+          </p>
+
+          <div class="citations">
+            
+      <span class="citation muted">
+        بدون منبع
+      </span>
+    
+          </div>
+
+        </div>
+      
+        <div class="competitor-card">
+
+          <div class="card-header">
+
+            <strong>
+              Snapp Shop
+            </strong>
+
+            <span class="badge neutral">
+              insufficient
+            </span>
+
+          </div>
+
+          <p>
+            هیچ مدرک مستقیم در گزارش‌های ارائه شده درباره تمرکز رقابتی این برند وجود ندارد.
+          </p>
+
+          <div class="citations">
+            
+      <span class="citation muted">
+        بدون منبع
+      </span>
+    
+          </div>
+
+        </div>
+      
+        <div class="competitor-card">
+
+          <div class="card-header">
+
+            <strong>
+              Technolife
+            </strong>
+
+            <span class="badge neutral">
+              limited
+            </span>
+
+          </div>
+
+          <p>
+            تحلیل کیفیت تلویزیون‌های تکنولایف در پلتفرم رقیب ارائه شده است اما شواهد مستقیم رقابتی با دیجی‌کالا وجود ندارد.
+          </p>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/smart-home-appliances/xvision-vs-snowa-tv-comparison-buying-guide"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="تلویزیون ایکس ویژن بهتر است یا اسنوا؟ بررسی کیفیت"
+      >
+        SRC-003
+      </a>
+    
+          </div>
+
+        </div>
+      
+
+  </section>
+
+  <!-- Risks -->
+
+  <section
+    class="section"
+    id="risks"
+  >
+
+    <h2 class="section-title">
+      ریسک‌های کلیدی
+    </h2>
+
+    
+        <div class="risk-card">
+
+          <div class="card-header">
+
+            <strong>
+              محدودیت‌های وارداتی و رقابت در بازار تجارت الکترونیک
+            </strong>
+
+            <span class="badge medium">
+              Impact:
+              Medium
+              (3)
+            </span>
+
+          </div>
+
+          <p>
+            محدودیت‌های وارداتی، ضوابط نمایش کالا، مالیات و دشواری‌های عرضه رسمی رقابت پلتفرم‌های رسمی از جمله دیجی‌کالا با فروشگاه‌های شبکه‌های اجتماعی را دشوار کرده است.
+          </p>
+
+          <div class="meta-row">
+
+            <span>
+              نوع:
+              <strong>
+                Competitive
+              </strong>
+            </span>
+
+            <span>
+              اطمینان:
+              <strong>
+                Medium
+              </strong>
+            </span>
+
+          </div>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/ecommerce-platforms-fair-competition-instagram-shops-iran-1403"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="مدیران پلتفرم‌های بزرگ: شرایط رقابت تجارت رسمی و ..."
+      >
+        SRC-002
+      </a>
+    
+          </div>
+
+        </div>
+      
+
+  </section>
+
+  <!-- Opportunities -->
+
+  <section
+    class="section"
+    id="opportunities"
+  >
+
+    <h2 class="section-title">
+      فرصت‌های شناسایی‌شده
+    </h2>
+
+    
+        <div class="opportunity-card">
+
+          <div class="card-header">
+
+            <strong>
+              رشد بازار تجارت الکترونیکی ایران
+            </strong>
+
+            <span class="badge high">
+              Market Growth
+            </span>
+
+          </div>
+
+          <p>
+            حجم تجارت الکترونیکی ایران بدون تندمصرف در سال ۱۴۰۵ به بیش از ۱۰۰۰ میلیارد تومان خواهد رسید و فرصت‌هایی مانند هوش مصنوعی و فین‌تک وجود دارد.
+          </p>
+
+          <div class="meta-row">
+
+            <span>
+              اطمینان:
+              <strong>
+                Medium
+              </strong>
+            </span>
+
+          </div>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/ecommerce-platforms-fair-competition-instagram-shops-iran-1403"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="مدیران پلتفرم‌های بزرگ: شرایط رقابت تجارت رسمی و ..."
+      >
+        SRC-002
+      </a>
+    
+          </div>
+
+        </div>
+      
+        <div class="opportunity-card">
+
+          <div class="card-header">
+
+            <strong>
+              تکنولوژی و تجربه خرید دیجی‌کالا
+            </strong>
+
+            <span class="badge high">
+              Technology
+            </span>
+
+          </div>
+
+          <p>
+            راه‌اندازی قابلیت‌های پرو مجازی و آرایش مجازی با هوش مصنوعی می‌تواند فاصله خرید آنلاین و تجربه حضوری را کاهش دهد.
+          </p>
+
+          <div class="meta-row">
+
+            <span>
+              اطمینان:
+              <strong>
+                Medium
+              </strong>
+            </span>
+
+          </div>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/digikala-virtual-try-on"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="دیجی‌کالا «پرو مجازی» را راه‌اندازی کرد"
+      >
+        SRC-005
+      </a>
+    
+          </div>
+
+        </div>
+      
+
+  </section>
+
+  <!-- Actions -->
+
+  <section
+    class="section"
+    id="actions"
+  >
+
+    <h2 class="section-title">
+      اقدامات پیشنهادی
+    </h2>
+
+    
+        <div class="action-card">
+
+          <div class="card-header">
+
+            <strong>
+              بررسی بیشتر روند راه‌اندازی قابلیت‌های هوش مصنوعی و تأثیر آن بر فروش
+            </strong>
+
+            <span class="badge medium">
+              اولویت Medium
+            </span>
+
+          </div>
+
+          <p>
+            این موضوع بر اساس شواهد عمومی موجود نیازمند بررسی و پایش بیشتر است.
+          </p>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/digikala-virtual-try-on"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="دیجی‌کالا «پرو مجازی» را راه‌اندازی کرد"
+      >
+        SRC-005
+      </a>
+    
+          </div>
+
+        </div>
+      
+        <div class="action-card">
+
+          <div class="card-header">
+
+            <strong>
+              تحقیق مقایسه‌ای بین رقبا در زمینه خدمات فین‌تک و تجربه خرید
+            </strong>
+
+            <span class="badge medium">
+              اولویت Medium
+            </span>
+
+          </div>
+
+          <p>
+            بررسی رقابت در بخش فین‌تک می‌تواند فرصت‌های پتانسیل‌دار را آشکار کند.
+          </p>
+
+          <div class="citations">
+            
+      <a
+        class="citation"
+        href="https://digiato.com/iran-technology-news/ecommerce-platforms-fair-competition-instagram-shops-iran-1403"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="مدیران پلتفرم‌های بزرگ: شرایط رقابت تجارت رسمی و ..."
+      >
+        SRC-002
+      </a>
+    
+          </div>
+
+        </div>
+      
+
+  </section>
+
+  <!-- Human Review -->
+
+  <section
+    class="section"
+    id="human-review"
+  >
+
+    <h2 class="section-title">
+      نیازمند بررسی انسانی
+    </h2>
+
+    
+      <div class="empty-state">
+        در حال حاضر موردی برای بررسی انسانی وجود ندارد.
+      </div>
+    
+
+  </section>
+
+  <!-- Limitations -->
+
+  <section
+    class="section"
+    id="limitations"
+  >
+
+    <h2 class="section-title">
+      محدودیت‌های تحلیل
+    </h2>
+
+    <ul>
+      
+        <li>
+          تعداد محدود اخبار مرتبط در بازه مورد بررسی
+        </li>
+      
+    </ul>
+
+  </section>
+
+  <!-- Sources -->
+
+  <section
+    class="section"
+    id="sources"
+  >
+
+    <h2 class="section-title">
+      منابع و شواهد
+    </h2>
+
+    <div class="table-wrapper">
+
+      <table>
+
+        <thead>
+
+          <tr>
+
+            <th>
+              Source ID
+            </th>
+
+            <th>
+              عنوان
+            </th>
+
+            <th>
+              منبع
+            </th>
+
+            <th>
+              برند
+            </th>
+
+            <th>
+              تاریخ
+            </th>
+
+            <th>
+              Confidence
+            </th>
+
+            <th>
+              لینک
+            </th>
+
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          
+  <tr>
+
+    <td>
+      <strong>
+        SRC-002
+      </strong>
+    </td>
+
+    <td class="title-cell">
+      مدیران پلتفرم‌های بزرگ: شرایط رقابت تجارت رسمی و ...
+    </td>
+
+    <td>
+      Digiato
+    </td>
+
+    <td>
+      دیجی‌کالا
+    </td>
+
+    <td>
+      ۴ شهریور ۱۴۰۵
+    </td>
+
+    <td>
+      <span class="badge medium">
+        Medium
+      </span>
+    </td>
+
+    <td>
+      <a
+        class="source-button"
+        href="https://digiato.com/iran-technology-news/ecommerce-platforms-fair-competition-instagram-shops-iran-1403"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        باز کردن
+      </a>
+    </td>
+
+  </tr>
+
+  <tr>
+
+    <td>
+      <strong>
+        SRC-005
+      </strong>
+    </td>
+
+    <td class="title-cell">
+      دیجی‌کالا «پرو مجازی» را راه‌اندازی کرد
+    </td>
+
+    <td>
+      Digiato
+    </td>
+
+    <td>
+      دیجی‌کالا
+    </td>
+
+    <td>
+      ۲۸ مرداد ۱۴۰۵
+    </td>
+
+    <td>
+      <span class="badge medium">
+        Medium
+      </span>
+    </td>
+
+    <td>
+      <a
+        class="source-button"
+        href="https://digiato.com/iran-technology-news/digikala-virtual-try-on"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        باز کردن
+      </a>
+    </td>
+
+  </tr>
+
+  <tr>
+
+    <td>
+      <strong>
+        SRC-001
+      </strong>
+    </td>
+
+    <td class="title-cell">
+      حجت‌ نیکی‌ملکی رئیس هیئت مدیره گروه دیجی‌کالا شد
+    </td>
+
+    <td>
+      Digiato
+    </td>
+
+    <td>
+      دیجی‌کالا
+    </td>
+
+    <td>
+      ۵ شهریور ۱۴۰۵
+    </td>
+
+    <td>
+      <span class="badge medium">
+        Medium
+      </span>
+    </td>
+
+    <td>
+      <a
+        class="source-button"
+        href="https://digiato.com/iran-technology-news/nikimaleki-chair-of-the-board-directors-digikala-group"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        باز کردن
+      </a>
+    </td>
+
+  </tr>
+
+  <tr>
+
+    <td>
+      <strong>
+        SRC-003
+      </strong>
+    </td>
+
+    <td class="title-cell">
+      تلویزیون ایکس ویژن بهتر است یا اسنوا؟ بررسی کیفیت
+    </td>
+
+    <td>
+      Digiato
+    </td>
+
+    <td>
+      تکنولایف
+    </td>
+
+    <td>
+      ۴ شهریور ۱۴۰۵
+    </td>
+
+    <td>
+      <span class="badge medium">
+        Medium
+      </span>
+    </td>
+
+    <td>
+      <a
+        class="source-button"
+        href="https://digiato.com/smart-home-appliances/xvision-vs-snowa-tv-comparison-buying-guide"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        باز کردن
+      </a>
+    </td>
+
+  </tr>
+
+  <tr>
+
+    <td>
+      <strong>
+        SRC-004
+      </strong>
+    </td>
+
+    <td class="title-cell">
+      ۷۷ درصد درآمد عملیاتی حرکت اول از سود سهام دیجی‌کالا حاصل شد
+    </td>
+
+    <td>
+      Digiato
+    </td>
+
+    <td>
+      دیجی‌کالا
+    </td>
+
+    <td>
+      ۳۱ مرداد ۱۴۰۵
+    </td>
+
+    <td>
+      <span class="badge medium">
+        Medium
+      </span>
+    </td>
+
+    <td>
+      <a
+        class="source-button"
+        href="https://digiato.com/iran-technology-news/details-operating-income-harkat-avval-first-half-1405"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        باز کردن
+      </a>
+    </td>
+
+  </tr>
+
+  <tr>
+
+    <td>
+      <strong>
+        SRC-006
+      </strong>
+    </td>
+
+    <td class="title-cell">
+      راهنمای جامع خرید بهترین موتور برق؛ از خانگی تا کارگاهی
+    </td>
+
+    <td>
+      Digiato
+    </td>
+
+    <td>
+      دیجی‌کالا
+    </td>
+
+    <td>
+      ۲۷ مرداد ۱۴۰۵
+    </td>
+
+    <td>
+      <span class="badge medium">
+        Medium
+      </span>
+    </td>
+
+    <td>
+      <a
+        class="source-button"
+        href="https://digiato.com/buying-guide/electric-motor-buying-guide"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        باز کردن
+      </a>
+    </td>
+
+  </tr>
+
+  <tr>
+
+    <td>
+      <strong>
+        SRC-007
+      </strong>
+    </td>
+
+    <td class="title-cell">
+      چه کسانی بازار طلای ایران را می‌سازند؟ نقشه اکوسیستم طلا در ...
+    </td>
+
+    <td>
+      Digiato
+    </td>
+
+    <td>
+      دیجی‌کالا
+    </td>
+
+    <td>
+      ۲۵ مرداد ۱۴۰۵
+    </td>
+
+    <td>
+      <span class="badge medium">
+        Medium
+      </span>
+    </td>
+
+    <td>
+      <a
+        class="source-button"
+        href="https://digiato.com/iran-technology-news/map-ecosystem-gold-1405"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        باز کردن
+      </a>
+    </td>
+
+  </tr>
+
+  <tr>
+
+    <td>
+      <strong>
+        SRC-008
+      </strong>
+    </td>
+
+    <td class="title-cell">
+      بنیان‌گذاران دیجی‌کالا 25 درصد سهام دنسه را خریدند
+    </td>
+
+    <td>
+      Digiato
+    </td>
+
+    <td>
+      دیجی‌کالا
+    </td>
+
+    <td>
+      ۱۸ مرداد ۱۴۰۵
+    </td>
+
+    <td>
+      <span class="badge medium">
+        Medium
+      </span>
+    </td>
+
+    <td>
+      <a
+        class="source-button"
+        href="https://digiato.com/iran-technology-news/digikala-founders-buy-shares-donse-group"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        باز کردن
+      </a>
+    </td>
+
+  </tr>
+
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </section>
+
+  <!-- Footer -->
+
+  <div class="footer">
+
+    Commercial OSINT
+    •
+    Public Sources Only
+    •
+    دیجی‌کالا
+
+  </div>
+
+</div>
+
+</body>
+
+</html>
