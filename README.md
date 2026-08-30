@@ -87,7 +87,7 @@ This is a project-specific design decision rather than a general claim that Goog
 ## Architecture
 
 <p align="center">
-  <img src="assets/workflow-overview.png" alt="n8n Commercial OSINT Agent workflow overview" width="100%">
+  <img src="workflow/workflow-overview.PNG" alt="n8n Commercial OSINT Agent workflow overview" width="100%">
 </p>
 
 ```text
