@@ -1,0 +1,1419 @@
+{
+  "name": "Digikala_Commercial_OSINT_Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        -128
+      ],
+      "id": "0ea67db2-8dc0-43e0-abdf-81a31dc8b578",
+      "name": "01 - Manual Start"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"company\": {\n    \"name\": \"Digikala\",\n    \"name_fa\": \"دیجی‌کالا\",\n    \"domain\": \"digikala.com\",\n    \"keywords\": [\n      \"دیجی‌کالا\",\n      \"دیجی کالا\",\n      \"Digikala\"\n    ]\n  },\n  \"competitors\": [\n    {\n      \"name\": \"Snapp Shop\",\n      \"name_fa\": \"اسنپ شاپ\",\n      \"keywords\": [\n        \"اسنپ شاپ\",\n        \"Snapp Shop\"\n      ]\n    },\n    {\n      \"name\": \"Torob\",\n      \"name_fa\": \"ترب\",\n      \"keywords\": [\n        \"ترب\",\n        \"Torob\"\n      ]\n    },\n    {\n      \"name\": \"Technolife\",\n      \"name_fa\": \"تکنولایف\",\n      \"keywords\": [\n        \"تکنولایف\",\n        \"Technolife\"\n      ]\n    }\n  ],\n  \"lookback_days\": 14,\n  \"country\": \"IR\",\n  \"language\": \"fa\",\n  \"max_items_per_source\": 20,\n  \"report_title\": \"گزارش مدیریتی OSINT دیجی‌کالا\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -576,
+        -128
+      ],
+      "id": "978941cc-fa3e-433e-be4c-f712769d9b9e",
+      "name": "02 - OSINT Config"
+    },
+    {
+      "parameters": {
+        "url": "https://www.mehrnews.com/rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -288,
+        -80
+      ],
+      "id": "05875558-2f2b-4bcd-a6e9-cd808a046e26",
+      "name": "03 - RSS - Mehr"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst config = $('02 - OSINT Config').first().json;\n\nconst lookbackDays = Number(config.lookback_days || 7);\n\nconst now = new Date();\nconst cutoffDate = new Date(\n  now.getTime() - (lookbackDays * 24 * 60 * 60 * 1000)\n);\n\n// همه برندها: شرکت اصلی + رقبا\nconst brands = [\n  {\n    name: config.company.name,\n    name_fa: config.company.name_fa,\n    type: 'company',\n    keywords: config.company.keywords || []\n  },\n  ...config.competitors.map(c => ({\n    name: c.name,\n    name_fa: c.name_fa,\n    type: 'competitor',\n    keywords: c.keywords || []\n  }))\n];\n\nconst results = [];\n\nfor (const item of items) {\n  const data = item.json;\n\n  const title = String(data.title || '').trim();\n\n  const content = String(\n    data.contentSnippet ||\n    data.content ||\n    data.description ||\n    ''\n  ).trim();\n\n  const url = String(\n    data.link ||\n    data.url ||\n    ''\n  ).trim();\n\n  const publishedRaw =\n    data.isoDate ||\n    data.pubDate ||\n    data.published ||\n    '';\n\n  const publishedDate = new Date(publishedRaw);\n\n  // 1. حذف رکورد ناقص\n  if (!title || !url || !publishedRaw) {\n    continue;\n  }\n\n  // 2. فقط بازه زمانی مشخص‌شده در Config\n  if (\n    isNaN(publishedDate.getTime()) ||\n    publishedDate < cutoffDate ||\n    publishedDate > now\n  ) {\n    continue;\n  }\n\n  // 3. متن قابل جست‌وجو\n  const searchableText =\n    `${title} ${content}`.toLowerCase();\n\n  // 4. پیدا کردن تمام برندهای ذکرشده در خبر\n  const matchedBrands = brands.filter(brand =>\n    brand.keywords.some(keyword =>\n      searchableText.includes(\n        String(keyword).toLowerCase()\n      )\n    )\n  );\n\n  // اگر هیچ برند هدفی نبود، خبر حذف شود\n  if (matchedBrands.length === 0) {\n    continue;\n  }\n\n  results.push({\n    json: {\n      title,\n      url,\n\n      source: 'Mehr News',\n      source_domain: 'mehrnews.com',\n\n      published_date: publishedDate.toISOString(),\n\n      matched_brands: matchedBrands.map(b => ({\n        name: b.name,\n        name_fa: b.name_fa,\n        type: b.type\n      })),\n\n      primary_brand: matchedBrands[0].name,\n      primary_brand_fa: matchedBrands[0].name_fa,\n\n      content,\n\n      collection_source: 'RSS',\n      collection_channel: 'Mehr RSS'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        -80
+      ],
+      "id": "5ad8e0b7-7fc4-4cbe-ba59-e7e687ab507b",
+      "name": "04 - Filter & Normalize - Mehr"
+    },
+    {
+      "parameters": {
+        "query": "={{ $json.search_query }}",
+        "options": {
+          "topic": "news",
+          "search_depth": "basic",
+          "max_results": 10,
+          "days": "={{ $json.lookback_days }}",
+          "include_domains": [
+            "digiato.com"
+          ]
+        }
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavily",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        704
+      ],
+      "id": "18c068e9-c1a7-45ab-b39c-d73fdae168d3",
+      "name": "12 - Tavily Search - Brands",
+      "credentials": {
+        "tavilyApi": {
+          "id": "REPLACE_ME",
+          "name": "REPLACE_WITH_TAVILY_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst config = $('02 - OSINT Config').first().json;\n\nconst output = [];\n\n// نرمال‌سازی حروف فارسی برای Match مطمئن‌تر\nfunction normalizeText(value) {\n  return String(value || '')\n    .toLowerCase()\n    .replace(/ي/g, 'ی')\n    .replace(/ك/g, 'ک')\n    .replace(/\\u200c/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\n// لیست شرکت اصلی + رقبا\nconst brands = [\n  {\n    name: config.company.name,\n    name_fa: config.company.name_fa,\n    type: 'company',\n    keywords: config.company.keywords || []\n  },\n  ...config.competitors.map(c => ({\n    name: c.name,\n    name_fa: c.name_fa,\n    type: 'competitor',\n    keywords: c.keywords || []\n  }))\n];\n\nfor (const item of items) {\n\n  // Tavily خودش Query مربوط به این Search را در خروجی نگه می‌دارد\n  const query = normalizeText(item.json.query);\n\n  // مشخص کنیم این Search متعلق به کدام برند بوده\n  const matchedBrand = brands.find(brand => {\n\n    const possibleNames = [\n      brand.name,\n      brand.name_fa,\n      ...brand.keywords\n    ];\n\n    return possibleNames.some(value => {\n      const normalizedValue = normalizeText(value);\n\n      return normalizedValue &&\n        (\n          query === normalizedValue ||\n          query.includes(normalizedValue) ||\n          normalizedValue.includes(query)\n        );\n    });\n  });\n\n  const results = Array.isArray(item.json.results)\n    ? item.json.results\n    : [];\n\n  for (const result of results) {\n\n    const title = String(result.title || '').trim();\n    const url = String(result.url || '').trim();\n    const content = String(result.content || '').trim();\n\n    const publishedRaw =\n      result.published_date ||\n      result.publishedDate ||\n      '';\n\n    const publishedDate = new Date(publishedRaw);\n\n    if (!title || !url) {\n      continue;\n    }\n\n    output.push({\n      json: {\n        title,\n        url,\n\n        source: 'Digiato',\n        source_domain: 'digiato.com',\n\n        published_date:\n          !isNaN(publishedDate.getTime())\n            ? publishedDate.toISOString()\n            : publishedRaw,\n\n        matched_brands: matchedBrand\n          ? [\n              {\n                name: matchedBrand.name,\n                name_fa: matchedBrand.name_fa,\n                type: matchedBrand.type\n              }\n            ]\n          : [],\n\n        primary_brand:\n          matchedBrand?.name || 'Unknown',\n\n        primary_brand_fa:\n          matchedBrand?.name_fa || 'نامشخص',\n\n        brand_type:\n          matchedBrand?.type || 'unknown',\n\n        search_query: item.json.query || '',\n\n        content,\n\n        tavily_score:\n          result.score ?? null,\n\n        collection_source: 'Tavily',\n\n        collection_channel:\n          'Tavily - Digiato'\n      }\n    });\n  }\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        704
+      ],
+      "id": "3151bd68-d402-46a4-b1d2-260b8137c3ac",
+      "name": "13 - Split & Normalize - Tavily"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('02 - OSINT Config').first().json;\n\nconst brands = [\n  {\n    name: config.company.name,\n    name_fa: config.company.name_fa,\n    type: 'company',\n    keywords: config.company.keywords\n  },\n  ...config.competitors.map(c => ({\n    name: c.name,\n    name_fa: c.name_fa,\n    type: 'competitor',\n    keywords: c.keywords\n  }))\n];\n\nreturn brands.map(brand => {\n  return {\n    json: {\n      brand: brand.name,\n      brand_fa: brand.name_fa,\n      brand_type: brand.type,\n\n      // عبارت فارسی معمولاً برای منابع ایرانی بهتر جواب می‌دهد\n      search_query: brand.name_fa,\n\n      lookback_days: config.lookback_days\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        704
+      ],
+      "id": "a7304e43-a313-4f57-857e-7f8772566357",
+      "name": "11 - Build Tavily Search Jobs"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst config = $('02 - OSINT Config').first().json;\n\nfunction normalizeText(value) {\n  return String(value || '')\n    .toLowerCase()\n    .replace(/ي/g, 'ی')\n    .replace(/ك/g, 'ک')\n    .replace(/\\u200c/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nconst brands = [\n  {\n    name: config.company.name,\n    name_fa: config.company.name_fa,\n    keywords: config.company.keywords || []\n  },\n  ...config.competitors.map(c => ({\n    name: c.name,\n    name_fa: c.name_fa,\n    keywords: c.keywords || []\n  }))\n];\n\n// کلماتی که ممکن است نشان دهند برند فقط به عنوان لینک خرید آمده\nconst shoppingTerms = [\n  'خرید از',\n  'خرید کنید',\n  'لینک خرید',\n  'برای خرید',\n  'قیمت در',\n  'قیمت محصول',\n  'مشاهده قیمت',\n  'فروشگاه',\n  'خرید آنلاین',\n  'سفارش دهید'\n];\n\nconst output = [];\n\nfor (const item of items) {\n\n  const data = item.json;\n\n  const title = normalizeText(data.title);\n  const content = normalizeText(data.content);\n\n  const brand = brands.find(\n    b => b.name === data.primary_brand\n  );\n\n  if (!brand) {\n    continue;\n  }\n\n  const brandKeywords = [\n    brand.name,\n    brand.name_fa,\n    ...brand.keywords\n  ]\n    .map(normalizeText)\n    .filter(Boolean);\n\n  // آیا برند در عنوان وجود دارد؟\n  const titleHasBrand = brandKeywords.some(keyword =>\n    title.includes(keyword)\n  );\n\n  // تعداد دفعات ذکر برند در متن\n  let brandMentions = 0;\n\n  for (const keyword of brandKeywords) {\n    if (!keyword) continue;\n\n    let position = 0;\n\n    while (true) {\n      const index = content.indexOf(keyword, position);\n\n      if (index === -1) break;\n\n      brandMentions++;\n      position = index + keyword.length;\n    }\n  }\n\n  // آیا برند در ابتدای متن مطرح شده؟\n  const beginningOfContent = content.slice(0, 700);\n\n  const brandInBeginning = brandKeywords.some(keyword =>\n    beginningOfContent.includes(keyword)\n  );\n\n  // بررسی Context اطراف نام برند\n  let shoppingContextHits = 0;\n\n  for (const keyword of brandKeywords) {\n\n    const index = content.indexOf(keyword);\n\n    if (index === -1) continue;\n\n    const start = Math.max(0, index - 100);\n    const end = Math.min(\n      content.length,\n      index + keyword.length + 100\n    );\n\n    const context = content.slice(start, end);\n\n    const hasShoppingContext = shoppingTerms.some(term =>\n      context.includes(normalizeText(term))\n    );\n\n    if (hasShoppingContext) {\n      shoppingContextHits++;\n    }\n  }\n\n  // -------------------------\n  // Relevance Score\n  // -------------------------\n\n  let relevanceScore = 0;\n\n  // برند در عنوان = سیگنال بسیار قوی\n  if (titleHasBrand) {\n    relevanceScore += 4;\n  }\n\n  // برند در ابتدای مقاله\n  if (brandInBeginning) {\n    relevanceScore += 3;\n  }\n\n  // تعداد دفعات اشاره\n  if (brandMentions >= 3) {\n    relevanceScore += 3;\n  } else if (brandMentions === 2) {\n    relevanceScore += 2;\n  } else if (brandMentions === 1) {\n    relevanceScore += 1;\n  }\n\n  // اگر فقط Context خرید باشد، امتیاز کم شود\n  if (\n    shoppingContextHits > 0 &&\n    !titleHasBrand &&\n    brandMentions <= 1\n  ) {\n    relevanceScore -= 4;\n  }\n\n  // -------------------------\n  // وضعیت\n  // -------------------------\n\n  let relevanceStatus;\n\n  if (relevanceScore >= 4) {\n    relevanceStatus = 'relevant';\n  } else if (relevanceScore >= 2) {\n    relevanceStatus = 'needs_ai_check';\n  } else {\n    relevanceStatus = 'irrelevant';\n  }\n\n  // موارد واضحاً نامرتبط را همین‌جا حذف می‌کنیم\n  if (relevanceStatus === 'irrelevant') {\n    continue;\n  }\n\n  output.push({\n    json: {\n      ...data,\n\n      relevance_pre_score: relevanceScore,\n\n      relevance_status: relevanceStatus,\n\n      relevance_signals: {\n        title_has_brand: titleHasBrand,\n        brand_in_beginning: brandInBeginning,\n        brand_mentions: brandMentions,\n        shopping_context_hits: shoppingContextHits\n      }\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        704
+      ],
+      "id": "53905fd9-7c53-4e25-9f93-44b05dedee0a",
+      "name": "14 - Relevance Pre-Filter"
+    },
+    {
+      "parameters": {
+        "numberInputs": 5
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        288
+      ],
+      "id": "07515828-7b4e-4d18-b4bf-20673ac88f25",
+      "name": "15 - Merge News Sources"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfunction normalizeText(value) {\n  return String(value || '')\n    .toLowerCase()\n    .replace(/ي/g, 'ی')\n    .replace(/ك/g, 'ک')\n    .replace(/\\u200c/g, ' ')\n    .replace(/[^\\p{L}\\p{N}\\s]/gu, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction normalizeUrl(value) {\n  try {\n    const url = new URL(String(value || '').trim());\n\n    // پارامترهای Tracking حذف شوند\n    [\n      'utm_source',\n      'utm_medium',\n      'utm_campaign',\n      'utm_term',\n      'utm_content',\n      'fbclid',\n      'gclid'\n    ].forEach(param => url.searchParams.delete(param));\n\n    // #fragment حذف شود\n    url.hash = '';\n\n    return url.toString()\n      .replace(/\\/$/, '')\n      .toLowerCase();\n\n  } catch {\n    return String(value || '')\n      .trim()\n      .replace(/\\/$/, '')\n      .toLowerCase();\n  }\n}\n\n// شباهت ساده بین دو عنوان\nfunction titleSimilarity(a, b) {\n  const wordsA = new Set(normalizeText(a).split(' ').filter(Boolean));\n  const wordsB = new Set(normalizeText(b).split(' ').filter(Boolean));\n\n  if (!wordsA.size || !wordsB.size) {\n    return 0;\n  }\n\n  const intersection =\n    [...wordsA].filter(word => wordsB.has(word)).length;\n\n  const union =\n    new Set([...wordsA, ...wordsB]).size;\n\n  return union === 0 ? 0 : intersection / union;\n}\n\nconst unique = [];\n\nfor (const item of items) {\n  const data = item.json;\n\n  const title = String(data.title || '').trim();\n  const url = String(data.url || '').trim();\n\n  if (!title || !url) {\n    continue;\n  }\n\n  const normalizedUrl = normalizeUrl(url);\n\n  // -------------------------\n  // 1. Duplicate URL\n  // -------------------------\n  const sameUrl = unique.findIndex(existing =>\n    existing._normalized_url === normalizedUrl\n  );\n\n  if (sameUrl !== -1) {\n    continue;\n  }\n\n  // -------------------------\n  // 2. عنوان بسیار مشابه\n  // -------------------------\n  let isSimilarDuplicate = false;\n\n  for (const existing of unique) {\n    const similarity = titleSimilarity(\n      title,\n      existing.title\n    );\n\n    // 80% شباهت یا بیشتر\n    if (similarity >= 0.8) {\n      isSimilarDuplicate = true;\n      break;\n    }\n  }\n\n  if (isSimilarDuplicate) {\n    continue;\n  }\n\n  unique.push({\n    ...data,\n    _normalized_url: normalizedUrl\n  });\n}\n\n// فیلد موقت داخلی را حذف کن\nreturn unique.map(item => {\n  const { _normalized_url, ...clean } = item;\n\n  return {\n    json: clean\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        336
+      ],
+      "id": "2b898bf7-41bd-46bc-953d-99abaffc150e",
+      "name": "16 - Deduplicate News"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst validItems = [];\n\nfor (const item of items) {\n  const data = item.json;\n\n  const title = String(data.title || '').trim();\n  const url = String(data.url || '').trim();\n  const source = String(data.source || '').trim();\n  const publishedDate = String(data.published_date || '').trim();\n  const primaryBrand = String(data.primary_brand || '').trim();\n\n  // حداقل فیلدهای الزامی\n  if (\n    !title ||\n    !url ||\n    !source ||\n    !publishedDate ||\n    !primaryBrand ||\n    primaryBrand === 'Unknown'\n  ) {\n    continue;\n  }\n\n  // تاریخ باید معتبر باشد\n  const parsedDate = new Date(publishedDate);\n\n  if (isNaN(parsedDate.getTime())) {\n    continue;\n  }\n\n  validItems.push({\n    ...data,\n    published_date: parsedDate.toISOString()\n  });\n}\n\n// جدیدترین خبرها اول\nvalidItems.sort((a, b) => {\n  return new Date(b.published_date) - new Date(a.published_date);\n});\n\n// Source ID نهایی\nreturn validItems.map((data, index) => ({\n  json: {\n    source_id: `SRC-${String(index + 1).padStart(3, '0')}`,\n    ...data\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        336
+      ],
+      "id": "0bd5173d-9568-4c2d-9158-c1a89f9a94c3",
+      "name": "17 - Validate & Assign Source IDs"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst BATCH_SIZE = 10;\n\nconst articles = items.map(item => {\n  const data = item.json;\n\n  return {\n    source_id: data.source_id,\n    title: data.title,\n    primary_brand: data.primary_brand,\n    primary_brand_fa: data.primary_brand_fa,\n\n    // برای کم کردن Token، فقط بخش کافی از متن را می‌فرستیم\n    content: String(data.content || '').slice(0, 1800),\n\n    source: data.source,\n    published_date: data.published_date\n  };\n});\n\nconst output = [];\n\nfor (let i = 0; i < articles.length; i += BATCH_SIZE) {\n\n  const batch = articles.slice(i, i + BATCH_SIZE);\n\n  output.push({\n    json: {\n      batch_id: `RB-${String(\n        Math.floor(i / BATCH_SIZE) + 1\n      ).padStart(2, '0')}`,\n\n      article_count: batch.length,\n\n      articles: batch\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        336
+      ],
+      "id": "3ed1223f-c9e6-4149-b497-8ca751928825",
+      "name": "18 - Build Relevance Batches"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# Semantic Relevance Validation Prompt\n\nYou are a commercial OSINT relevance validator.\n\nYou will receive a batch of Persian news articles collected for Digikala and its competitors.\n\nYour ONLY task is to determine whether each article is genuinely about the assigned brand from a business/news perspective.\n\nAn article is RELEVANT when the brand itself, its business, products/services, strategy, operations, partnerships, investments, technology, market activity, customers, logistics, financial activity, regulation, reputation, incidents, risks, opportunities, ownership, or financial relationships are a meaningful subject of the article.\n\nArticles are also RELEVANT when they discuss:\n\n* ownership or shareholding in the brand,\n* investors, shareholders, or parent companies whose financial results are materially affected by the brand,\n* dividends, profit from shares, valuation, investment, funding, acquisition, or ownership changes related to the brand,\n* financial performance where the brand is a meaningful source of revenue, profit, loss, or asset value.\n\nExample:\n\n\"77% of a shareholder's operating income came from Digikala dividends\"\n\nis RELEVANT to Digikala because it provides meaningful evidence about Digikala's ownership and financial impact.\n\nAn article is NOT RELEVANT when:\n\n* the brand is only mentioned incidentally,\n* the brand appears only in a shopping or purchase link,\n* the article only says \"buy from Digikala/Technolife/Torob/etc.\",\n* the brand appears only as an advertisement, retailer link, seller, price source, affiliate link, or purchase recommendation,\n* the article is mainly about another company, product, technology, or topic and the assigned brand is not materially discussed,\n* the brand appears only in a list of retailers or shopping options,\n* a product can be purchased from the brand but the article itself is not about the brand.\n\nIMPORTANT:\n\nDo not assume an article is relevant just because it was returned by the search engine.\n\nEvaluate the actual meaning and subject of the article.\n\nIf the article contains meaningful evidence about the brand's business position, ownership, financial impact, strategy, operations, reputation, market activity, risks, or opportunities, consider it relevant even if another company is the main subject of the headline.\n\nFor every article return:\n\n* source_id\n* is_relevant: true or false\n* relevance_score: integer from 0 to 100\n* relevance_reason: one short Persian sentence explaining the decision\n\nScoring guidance:\n\n0-20 = clearly irrelevant\n21-49 = mostly incidental\n50-69 = uncertain / partially relevant\n70-89 = clearly relevant\n90-100 = primarily about the brand\n\nRules:\n\n* Return exactly one result for every input article.\n* Preserve the exact source_id from the input.\n* Never invent a new Source ID.\n* Do not omit any article.\n* relevance_score must be an integer between 0 and 100.\n* relevance_reason must be short and written in Persian.\n* Do not include markdown.\n* Do not include explanations outside the JSON.\n* Return ONLY valid JSON.\n\nReturn exactly this structure:\n\n{\n\"results\": [\n{\n\"source_id\": \"SRC-001\",\n\"is_relevant\": true,\n\"relevance_score\": 90,\n\"relevance_reason\": \"خبر مستقیماً به فعالیت تجاری برند می‌پردازد.\"\n}\n]\n}\n\nINPUT ARTICLES:\n\n{{ JSON.stringify($json.articles) }}\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1184,
+        336
+      ],
+      "id": "761a27cb-362f-4a9c-8acf-c485355d1274",
+      "name": "19 - AI Semantic Relevance Check"
+    },
+    {
+      "parameters": {
+        "model": "openrouter/free",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        528
+      ],
+      "id": "627ea983-3bfe-4269-9ae6-48bdcd61d628",
+      "name": "19A - OpenRouter Model - Relevance",
+      "credentials": {
+        "openRouterApi": {
+          "id": "REPLACE_ME",
+          "name": "REPLACE_WITH_OPENROUTER_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiItems = $input.all();\n\n// خبرهای اصلی دارای Source ID\nconst originalItems =\n  $('17 - Validate & Assign Source IDs').all();\n\nconst articleMap = new Map();\n\nfor (const item of originalItems) {\n  const sourceId = String(item.json.source_id || '').trim();\n\n  if (sourceId) {\n    articleMap.set(sourceId, item.json);\n  }\n}\n\nconst decisions = new Map();\n\nfor (const item of aiItems) {\n\n  let text = String(item.json.text || '').trim();\n\n  // اگر مدل ```json گذاشته باشد حذفش کن\n  text = text\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/\\s*```$/i, '')\n    .trim();\n\n  let parsed;\n\n  try {\n    parsed = JSON.parse(text);\n  } catch (error) {\n    throw new Error(\n      `AI returned invalid JSON: ${error.message}`\n    );\n  }\n\n  if (!Array.isArray(parsed.results)) {\n    throw new Error(\n      'AI output does not contain a results array.'\n    );\n  }\n\n  for (const result of parsed.results) {\n\n    const sourceId =\n      String(result.source_id || '').trim();\n\n    // مدل حق اختراع Source ID ندارد\n    if (!articleMap.has(sourceId)) {\n      throw new Error(\n        `Invalid or invented Source ID: ${sourceId}`\n      );\n    }\n\n    // یک خبر نباید دو تصمیم داشته باشد\n    if (decisions.has(sourceId)) {\n      throw new Error(\n        `Duplicate AI decision for ${sourceId}`\n      );\n    }\n\n    const score =\n      Number(result.relevance_score);\n\n    if (\n      !Number.isFinite(score) ||\n      score < 0 ||\n      score > 100\n    ) {\n      throw new Error(\n        `Invalid relevance score for ${sourceId}`\n      );\n    }\n\n    if (\n      typeof result.is_relevant !== 'boolean'\n    ) {\n      throw new Error(\n        `Invalid is_relevant value for ${sourceId}`\n      );\n    }\n\n    decisions.set(sourceId, {\n      is_relevant: result.is_relevant,\n      relevance_score: Math.round(score),\n      relevance_reason:\n        String(result.relevance_reason || '').trim()\n    });\n  }\n}\n\n// AI باید برای تک تک خبرها پاسخ داده باشد\nfor (const sourceId of articleMap.keys()) {\n\n  if (!decisions.has(sourceId)) {\n    throw new Error(\n      `Missing AI decision for ${sourceId}`\n    );\n  }\n}\n\nconst output = [];\n\nfor (const [sourceId, article] of articleMap) {\n\n  const decision = decisions.get(sourceId);\n\n  let finalStatus;\n\n  // تصمیم قطعی مرتبط\n  if (\n    decision.is_relevant === true &&\n    decision.relevance_score >= 70\n  ) {\n    finalStatus = 'relevant';\n\n  // تصمیم قطعی نامرتبط\n  } else if (\n    decision.is_relevant === false &&\n    decision.relevance_score < 50\n  ) {\n    finalStatus = 'irrelevant';\n\n  // موارد مرزی یا متناقض\n  } else {\n    finalStatus = 'needs_review';\n  }\n\n  output.push({\n    json: {\n      ...article,\n\n      ai_relevance:\n        decision.is_relevant,\n\n      ai_relevance_score:\n        decision.relevance_score,\n\n      ai_relevance_reason:\n        decision.relevance_reason,\n\n      final_relevance_status:\n        finalStatus\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        336
+      ],
+      "id": "a4a0b66d-2b50-454a-a44d-0c96ede3a752",
+      "name": "20 - Parse & Validate AI Relevance"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.final_relevance_status }}",
+                    "rightValue": "relevant",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b7446603-8027-415b-a8dd-aea1b52a0103"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Relevant"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5cd0c492-429c-4a19-b632-3ca3bccd6f97",
+                    "leftValue": "={{ $json.final_relevance_status }}",
+                    "rightValue": "needs_review",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Needs Review"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "304a3cd1-3640-46b5-b94c-bc9cae7a22ef",
+                    "leftValue": "={{ $json.final_relevance_status }}",
+                    "rightValue": "irrelevant",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Irrelevant"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1632,
+        320
+      ],
+      "id": "dd0aeeb8-35f3-4c4b-b05e-09e8fbba336c",
+      "name": "21 - Route by Relevance"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst BATCH_SIZE = 10;\n\nconst articles = items.map(item => {\n  const data = item.json;\n\n  return {\n    source_id: data.source_id,\n\n    title: data.title,\n\n    primary_brand: data.primary_brand,\n    primary_brand_fa: data.primary_brand_fa,\n    brand_type: data.brand_type || '',\n\n    source: data.source,\n    published_date: data.published_date,\n\n    // متن کافی برای تحلیل، بدون مصرف Token غیرضروری\n    content: String(data.content || '').slice(0, 2500),\n\n    // نتیجه مرحله قبلی هم برای Context نگه می‌داریم\n    relevance_score: data.ai_relevance_score\n  };\n});\n\nconst output = [];\n\nfor (let i = 0; i < articles.length; i += BATCH_SIZE) {\n\n  const batch = articles.slice(i, i + BATCH_SIZE);\n\n  output.push({\n    json: {\n      batch_id: `AB-${String(\n        Math.floor(i / BATCH_SIZE) + 1\n      ).padStart(2, '0')}`,\n\n      article_count: batch.length,\n\n      articles: batch\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        192
+      ],
+      "id": "7a8ecb83-2a5f-47e3-ac89-8035b4c0699a",
+      "name": "22 - Build Analysis Batches"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a commercial OSINT business analyst.\n\nYou will receive a batch of Persian news articles about Digikala and its competitors.\n\nYour task is to analyze EACH article strictly based on the evidence contained in that article.\n\nDo not use outside knowledge.\nDo not invent facts.\nDo not invent Source IDs.\nDo not make claims that are not supported by the provided article.\n\nThe analysis will be used in an executive management report, so uncertainty must be preserved.\n\nFor EACH article, produce the following fields:\n\n1. source_id\nPreserve the exact Source ID from the input.\n\n2. category\nChoose EXACTLY ONE primary category from this list:\n\n- Customer Experience\n- Price & Promotion\n- Logistics & Delivery\n- Marketplace & Sellers\n- Technology / AI / Fintech\n- Regulation & Legal\n- Brand Reputation & Risk\n- Corporate / Financial\n- Partnership / Investment\n- Competition / Market\n- Other\n\n3. secondary_tags\nReturn 1 to 3 short English tags that describe the article.\n\n4. sentiment\nChoose exactly one:\n\n- positive\n- neutral\n- negative\n- mixed\n\nSentiment means the business implication for the assigned brand, not the emotional tone of the writing.\n\n5. short_summary\nWrite one short Persian sentence summarizing the business-relevant meaning of the article.\n\n6. key_claim\nWrite one short Persian sentence containing the most important evidence-based claim from the article.\n\nDo not exaggerate the claim.\nDo not add information that is not present in the article.\n\n7. risk\n\nDetermine whether the article reveals a meaningful business risk for the assigned brand.\n\nReturn:\n\n- exists: true or false\n- type\n- description\n\nIf no meaningful risk exists:\nexists must be false,\ntype must be \"none\",\ndescription must be an empty string.\n\nIf a risk exists, type must be exactly one of:\n\n- Operational\n- Financial\n- Reputational\n- Regulatory\n- Competitive\n- Technology\n- Customer\n- Strategic\n- Other\n\nThe risk description must be one short Persian sentence.\n\n8. risk_impact_factors\n\nONLY evaluate these factors when risk.exists = true.\n\nEach factor must be an INTEGER from 0 to 2.\n\nbusiness_scope:\n0 = highly limited or isolated impact\n1 = affects a meaningful business unit, product, market, or customer segment\n2 = potentially affects multiple major areas, the company broadly, or a strategically important part of the business\n\nfinancial_effect:\n0 = no meaningful financial effect is evident\n1 = possible or moderate financial impact\n2 = potentially significant revenue, cost, investment, valuation, or financial impact\n\nreputation_effect:\n0 = little or no reputational effect\n1 = possible reputational concern\n2 = potentially significant customer/public/brand reputation impact\n\nurgency:\n0 = no immediate action indicated\n1 = should be monitored or investigated\n2 = potentially requires prompt management attention\n\nIMPORTANT:\nDo NOT return Low, Medium, or High impact.\nThe workflow will calculate final Impact later from these four numeric factors.\n\nIf risk.exists = false, return:\n\nbusiness_scope = 0\nfinancial_effect = 0\nreputation_effect = 0\nurgency = 0\n\n9. opportunity\n\nDetermine whether the article reveals a meaningful business opportunity for the assigned brand.\n\nReturn:\n\n- exists: true or false\n- type\n- description\n\nIf no meaningful opportunity exists:\nexists must be false,\ntype must be \"none\",\ndescription must be an empty string.\n\nIf an opportunity exists, type must be exactly one of:\n\n- Market Growth\n- Customer Experience\n- Partnership\n- Technology\n- Investment\n- Competitive Advantage\n- Operational Improvement\n- Brand\n- Other\n\nThe opportunity description must be one short Persian sentence.\n\n10. management_signal\n\nChoose exactly one:\n\n- monitor\n- investigate\n- consider_action\n- informational\n\nUse:\nmonitor = something worth watching over time\ninvestigate = evidence suggests further verification or analysis is useful\nconsider_action = evidence may justify a management response\ninformational = useful context without an apparent immediate action\n\nIMPORTANT RULES:\n\n- Analyze every input article.\n- Return exactly one result for every article.\n- Preserve every exact source_id.\n- Never create a new Source ID.\n- Never cite information from another article when analyzing the current article.\n- The assigned primary_brand is the brand you are evaluating.\n- Do not confuse a competitor's opportunity with Digikala's opportunity.\n- Risks and opportunities must be grounded in the article.\n- A single article may contain both a risk and an opportunity.\n- If evidence is weak, prefer conservative scoring.\n- Do not output markdown.\n- Do not output explanations outside the JSON.\n- Return ONLY valid JSON.\n\nReturn exactly this JSON structure:\n\n{\n  \"results\": [\n    {\n      \"source_id\": \"SRC-001\",\n      \"category\": \"Corporate / Financial\",\n      \"secondary_tags\": [\n        \"shareholding\",\n        \"financial-performance\"\n      ],\n      \"sentiment\": \"neutral\",\n      \"short_summary\": \"خلاصه کوتاه فارسی خبر.\",\n      \"key_claim\": \"مهم‌ترین ادعای قابل استناد خبر.\",\n      \"risk\": {\n        \"exists\": false,\n        \"type\": \"none\",\n        \"description\": \"\"\n      },\n      \"risk_impact_factors\": {\n        \"business_scope\": 0,\n        \"financial_effect\": 0,\n        \"reputation_effect\": 0,\n        \"urgency\": 0\n      },\n      \"opportunity\": {\n        \"exists\": true,\n        \"type\": \"Investment\",\n        \"description\": \"شرح کوتاه فرصت.\"\n      },\n      \"management_signal\": \"informational\"\n    }\n  ]\n}\n\nINPUT ARTICLES:\n\n{{ JSON.stringify($json.articles) }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        2032,
+        192
+      ],
+      "id": "1e00af8b-07f1-4a00-8fcf-ce66e505a28e",
+      "name": "23 - AI Business Analysis"
+    },
+    {
+      "parameters": {
+        "model": "openrouter/free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1984,
+        384
+      ],
+      "id": "042dae84-818a-4bf5-bfe3-00b11d068f36",
+      "name": "23A - OpenRouter Model - Analysis",
+      "credentials": {
+        "openRouterApi": {
+          "id": "REPLACE_ME",
+          "name": "REPLACE_WITH_OPENROUTER_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiItems = $input.all();\n\n// خبرهای اصلی بعد از Dedup و Source ID\nconst originalItems =\n  $('17 - Validate & Assign Source IDs').all();\n\nconst articleMap = new Map();\n\nfor (const item of originalItems) {\n  const sourceId = String(\n    item.json.source_id || ''\n  ).trim();\n\n  if (sourceId) {\n    articleMap.set(sourceId, item.json);\n  }\n}\n\n// ==================================================\n// Allowed Categories\n// ==================================================\n\nconst allowedCategories = new Set([\n  'Customer Experience',\n  'Price & Promotion',\n  'Logistics & Delivery',\n  'Marketplace & Sellers',\n  'Technology / AI / Fintech',\n  'Regulation & Legal',\n  'Brand Reputation & Risk',\n  'Corporate / Financial',\n  'Partnership / Investment',\n  'Competition / Market',\n  'Other'\n]);\n\n// مدل ممکن است نام Category را کمی متفاوت بدهد.\n// Aliasهای شناخته‌شده را به Schema استاندارد تبدیل می‌کنیم.\nconst categoryAliases = {\n\n  'Competitive':\n    'Competition / Market',\n\n  'Competition':\n    'Competition / Market',\n\n  'Market Competition':\n    'Competition / Market',\n\n  'Competitive Landscape':\n    'Competition / Market',\n\n  'Financial':\n    'Corporate / Financial',\n\n  'Corporate':\n    'Corporate / Financial',\n\n  'Finance':\n    'Corporate / Financial',\n\n  'Technology':\n    'Technology / AI / Fintech',\n\n  'AI':\n    'Technology / AI / Fintech',\n\n  'Fintech':\n    'Technology / AI / Fintech',\n\n  'Legal':\n    'Regulation & Legal',\n\n  'Regulatory':\n    'Regulation & Legal',\n\n  'Regulation':\n    'Regulation & Legal',\n\n  'Partnership':\n    'Partnership / Investment',\n\n  'Investment':\n    'Partnership / Investment',\n\n  'Reputation':\n    'Brand Reputation & Risk'\n};\n\n// ==================================================\n// Allowed Sentiments\n// ==================================================\n\nconst allowedSentiments = new Set([\n  'positive',\n  'neutral',\n  'negative',\n  'mixed'\n]);\n\n// ==================================================\n// Allowed Risk Types\n// ==================================================\n\nconst allowedRiskTypes = new Set([\n  'none',\n  'Operational',\n  'Financial',\n  'Reputational',\n  'Regulatory',\n  'Competitive',\n  'Technology',\n  'Customer',\n  'Strategic',\n  'Other'\n]);\n\n// ==================================================\n// Allowed Opportunity Types\n// ==================================================\n\nconst allowedOpportunityTypes = new Set([\n  'none',\n  'Market Growth',\n  'Customer Experience',\n  'Partnership',\n  'Technology',\n  'Investment',\n  'Competitive Advantage',\n  'Operational Improvement',\n  'Brand',\n  'Other'\n]);\n\n// مدل ممکن است Opportunity Type را\n// با عبارت متفاوت ولی معنای مشابه برگرداند.\nconst opportunityTypeAliases = {\n\n  'Strategic Partnership':\n    'Partnership',\n\n  'Business Partnership':\n    'Partnership',\n\n  'Partnership Opportunity':\n    'Partnership',\n\n  'Strategic Alliance':\n    'Partnership',\n\n  'Alliance':\n    'Partnership',\n\n  'Growth':\n    'Market Growth',\n\n  'Market Expansion':\n    'Market Growth',\n\n  'Business Growth':\n    'Market Growth',\n\n  'Expansion':\n    'Market Growth',\n\n  'AI':\n    'Technology',\n\n  'Technology Opportunity':\n    'Technology',\n\n  'Digital Transformation':\n    'Technology',\n\n  'Innovation':\n    'Technology',\n\n  'Strategic Investment':\n    'Investment',\n\n  'Financial Investment':\n    'Investment',\n\n  'Competitive':\n    'Competitive Advantage',\n\n  'Competitive Edge':\n    'Competitive Advantage',\n\n  'Market Advantage':\n    'Competitive Advantage',\n\n  'Operations':\n    'Operational Improvement',\n\n  'Operational':\n    'Operational Improvement',\n\n  'Operational Efficiency':\n    'Operational Improvement',\n\n  'Brand Growth':\n    'Brand',\n\n  'Brand Awareness':\n    'Brand',\n\n  'Brand Positioning':\n    'Brand'\n};\n\n// ==================================================\n// Allowed Management Signals\n// ==================================================\n\nconst allowedManagementSignals = new Set([\n  'monitor',\n  'investigate',\n  'consider_action',\n  'informational'\n]);\n\nconst analyses = new Map();\n\n// ==================================================\n// Helper: Impact Factor Validation\n// ==================================================\n\nfunction validateImpactFactor(\n  value,\n  field,\n  sourceId\n) {\n\n  const number = Number(value);\n\n  if (\n    !Number.isInteger(number) ||\n    number < 0 ||\n    number > 2\n  ) {\n    throw new Error(\n      `Invalid ${field} for ${sourceId}: ${value}`\n    );\n  }\n\n  return number;\n}\n\n// ==================================================\n// Parse AI Output\n// ==================================================\n\nfor (const item of aiItems) {\n\n  let text = String(\n    item.json.text || ''\n  ).trim();\n\n  // حذف ```json و ``` در صورت وجود\n  text = text\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/\\s*```$/i, '')\n    .trim();\n\n  let parsed;\n\n  try {\n\n    parsed = JSON.parse(text);\n\n  } catch (error) {\n\n    throw new Error(\n      `Business Analysis returned invalid JSON: ${error.message}`\n    );\n  }\n\n  if (!Array.isArray(parsed.results)) {\n\n    throw new Error(\n      'Business Analysis output does not contain a results array.'\n    );\n  }\n\n  // ==================================================\n  // Validate Each Article Analysis\n  // ==================================================\n\n  for (const result of parsed.results) {\n\n    const sourceId =\n      String(\n        result.source_id || ''\n      ).trim();\n\n    // -----------------------------\n    // Source ID Guardrail\n    // -----------------------------\n\n    if (!articleMap.has(sourceId)) {\n\n      throw new Error(\n        `Invalid or invented Source ID: ${sourceId}`\n      );\n    }\n\n    if (analyses.has(sourceId)) {\n\n      throw new Error(\n        `Duplicate analysis for ${sourceId}`\n      );\n    }\n\n    // ==================================================\n    // Category\n    // ==================================================\n\n    const rawCategory =\n      String(\n        result.category || ''\n      ).trim();\n\n    const category =\n      categoryAliases[rawCategory] ||\n      rawCategory;\n\n    if (!allowedCategories.has(category)) {\n\n      throw new Error(\n        `Invalid category for ${sourceId}: ${rawCategory}`\n      );\n    }\n\n    // ==================================================\n    // Sentiment\n    // ==================================================\n\n    const sentiment =\n      String(\n        result.sentiment || ''\n      ).trim();\n\n    if (!allowedSentiments.has(sentiment)) {\n\n      throw new Error(\n        `Invalid sentiment for ${sourceId}: ${sentiment}`\n      );\n    }\n\n    // ==================================================\n    // Secondary Tags\n    // ==================================================\n\n    const secondaryTags =\n      Array.isArray(result.secondary_tags)\n        ? result.secondary_tags\n            .map(tag =>\n              String(tag || '').trim()\n            )\n            .filter(Boolean)\n            .slice(0, 3)\n        : [];\n\n    // ==================================================\n    // Summary & Claim\n    // ==================================================\n\n    const shortSummary =\n      String(\n        result.short_summary || ''\n      ).trim();\n\n    const keyClaim =\n      String(\n        result.key_claim || ''\n      ).trim();\n\n    if (!shortSummary) {\n\n      throw new Error(\n        `Missing short_summary for ${sourceId}`\n      );\n    }\n\n    if (!keyClaim) {\n\n      throw new Error(\n        `Missing key_claim for ${sourceId}`\n      );\n    }\n\n    // ==================================================\n    // Risk\n    // ==================================================\n\n    const riskExists =\n      result.risk?.exists === true;\n\n    let riskType =\n      String(\n        result.risk?.type || 'none'\n      ).trim();\n\n    let riskDescription =\n      String(\n        result.risk?.description || ''\n      ).trim();\n\n    if (!allowedRiskTypes.has(riskType)) {\n\n      throw new Error(\n        `Invalid risk type for ${sourceId}: ${riskType}`\n      );\n    }\n\n    // ==================================================\n    // Risk Impact Factors\n    // ==================================================\n\n    let businessScope =\n      validateImpactFactor(\n        result.risk_impact_factors\n          ?.business_scope ?? 0,\n        'business_scope',\n        sourceId\n      );\n\n    let financialEffect =\n      validateImpactFactor(\n        result.risk_impact_factors\n          ?.financial_effect ?? 0,\n        'financial_effect',\n        sourceId\n      );\n\n    let reputationEffect =\n      validateImpactFactor(\n        result.risk_impact_factors\n          ?.reputation_effect ?? 0,\n        'reputation_effect',\n        sourceId\n      );\n\n    let urgency =\n      validateImpactFactor(\n        result.risk_impact_factors\n          ?.urgency ?? 0,\n        'urgency',\n        sourceId\n      );\n\n    // اگر Risk وجود ندارد،\n    // Impact باید به صورت قطعی صفر شود.\n    if (!riskExists) {\n\n      riskType = 'none';\n      riskDescription = '';\n\n      businessScope = 0;\n      financialEffect = 0;\n      reputationEffect = 0;\n      urgency = 0;\n    }\n\n    // ==================================================\n    // Rule-Based Impact Calculation\n    // ==================================================\n\n    const impactScore =\n      businessScope +\n      financialEffect +\n      reputationEffect +\n      urgency;\n\n    let impactLevel = 'None';\n\n    if (riskExists) {\n\n      if (impactScore <= 2) {\n\n        impactLevel = 'Low';\n\n      } else if (impactScore <= 5) {\n\n        impactLevel = 'Medium';\n\n      } else {\n\n        impactLevel = 'High';\n      }\n    }\n\n    // ==================================================\n    // Opportunity\n    // ==================================================\n\n    const opportunityExists =\n      result.opportunity?.exists === true;\n\n    const rawOpportunityType =\n      String(\n        result.opportunity?.type || 'none'\n      ).trim();\n\n    let opportunityType =\n      opportunityTypeAliases[\n        rawOpportunityType\n      ] ||\n      rawOpportunityType;\n\n    let opportunityDescription =\n      String(\n        result.opportunity?.description || ''\n      ).trim();\n\n    if (\n      !allowedOpportunityTypes.has(\n        opportunityType\n      )\n    ) {\n\n      throw new Error(\n        `Invalid opportunity type for ${sourceId}: ${rawOpportunityType}`\n      );\n    }\n\n    // اگر Opportunity وجود ندارد،\n    // Type و Description را استاندارد می‌کنیم.\n    if (!opportunityExists) {\n\n      opportunityType = 'none';\n      opportunityDescription = '';\n    }\n\n    // ==================================================\n    // Management Signal\n    // ==================================================\n\n    const managementSignal =\n      String(\n        result.management_signal || ''\n      ).trim();\n\n    if (\n      !allowedManagementSignals.has(\n        managementSignal\n      )\n    ) {\n\n      throw new Error(\n        `Invalid management signal for ${sourceId}: ${managementSignal}`\n      );\n    }\n\n    // ==================================================\n    // Store Validated Analysis\n    // ==================================================\n\n    analyses.set(\n      sourceId,\n      {\n\n        // Category\n        category,\n\n        // برای Debug نگه می‌داریم\n        category_raw:\n          rawCategory,\n\n        secondary_tags:\n          secondaryTags,\n\n        sentiment,\n\n        // Summary\n        short_summary:\n          shortSummary,\n\n        key_claim:\n          keyClaim,\n\n        // Risk\n        risk_exists:\n          riskExists,\n\n        risk_type:\n          riskType,\n\n        risk_description:\n          riskDescription,\n\n        // Impact Factors\n        impact_business_scope:\n          businessScope,\n\n        impact_financial_effect:\n          financialEffect,\n\n        impact_reputation_effect:\n          reputationEffect,\n\n        impact_urgency:\n          urgency,\n\n        // Final Impact\n        impact_score:\n          impactScore,\n\n        impact_level:\n          impactLevel,\n\n        // Opportunity\n        opportunity_exists:\n          opportunityExists,\n\n        opportunity_type:\n          opportunityType,\n\n        // برای Debug\n        opportunity_type_raw:\n          rawOpportunityType,\n\n        opportunity_description:\n          opportunityDescription,\n\n        // Management\n        management_signal:\n          managementSignal\n      }\n    );\n  }\n}\n\n// ==================================================\n// Guardrail:\n// AI باید همه خبرهای Batch را تحلیل کرده باشد\n// ==================================================\n\nconst analyzedSourceIds =\n  new Set(\n    analyses.keys()\n  );\n\nconst batchItems =\n  $('22 - Build Analysis Batches').all();\n\nfor (const batchItem of batchItems) {\n\n  const articles =\n    Array.isArray(\n      batchItem.json.articles\n    )\n      ? batchItem.json.articles\n      : [];\n\n  for (const article of articles) {\n\n    const sourceId =\n      String(\n        article.source_id || ''\n      ).trim();\n\n    if (\n      sourceId &&\n      !analyzedSourceIds.has(sourceId)\n    ) {\n\n      throw new Error(\n        `Missing business analysis for ${sourceId}`\n      );\n    }\n  }\n}\n\n// ==================================================\n// Final Output\n// ==================================================\n\nconst output = [];\n\nfor (\n  const [sourceId, analysis]\n  of analyses\n) {\n\n  const originalArticle =\n    articleMap.get(sourceId);\n\n  output.push({\n    json: {\n\n      // دیتای اصلی خبر\n      ...originalArticle,\n\n      // تحلیل Validate شده\n      ...analysis\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        192
+      ],
+      "id": "3ee39fe5-a79a-4517-a109-45723c8f6314",
+      "name": "24 - Validate Analysis & Calculate Impact"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst config = $('02 - OSINT Config').first().json;\n\n// منابعی که فعلاً در معماری ما معتبر محسوب می‌شوند\nconst majorNewsDomains = new Set([\n  'irna.ir',\n  'isna.ir',\n  'mehrnews.com',\n  'tasnimnews.com'\n]);\n\nconst specialistNewsDomains = new Set([\n  'digiato.com'\n]);\n\nconst output = [];\n\nfor (const item of items) {\n\n  const data = item.json;\n\n  const domain = String(\n    data.source_domain || ''\n  )\n    .toLowerCase()\n    .replace(/^www\\./, '')\n    .trim();\n\n  // --------------------------------\n  // 1. Source Quality\n  // --------------------------------\n\n  let sourceTier = 'unknown';\n  let sourceQualityScore = 0;\n\n  // سایت رسمی شرکت اصلی\n  if (\n    domain === String(config.company.domain)\n      .toLowerCase()\n      .replace(/^www\\./, '')\n  ) {\n    sourceTier = 'official';\n    sourceQualityScore = 3;\n\n  } else if (majorNewsDomains.has(domain)) {\n\n    sourceTier = 'major_news';\n    sourceQualityScore = 2;\n\n  } else if (specialistNewsDomains.has(domain)) {\n\n    sourceTier = 'specialist_news';\n    sourceQualityScore = 2;\n\n  } else {\n\n    sourceTier = 'other_public_source';\n    sourceQualityScore = 1;\n  }\n\n  // --------------------------------\n  // 2. Evidence status\n  // --------------------------------\n\n  // فعلاً هر رکورد یک Source مستقل دارد.\n  // بعد از Tavily Verification ممکن است بیشتر شود.\n  const independentSources = 1;\n\n  const officialConfirmation =\n    sourceTier === 'official';\n\n  // --------------------------------\n  // 3. Initial Confidence\n  // --------------------------------\n\n  let confidenceScore = 0;\n\n  // کیفیت منبع\n  confidenceScore += sourceQualityScore * 2;\n\n  // تأیید رسمی امتیاز بسیار بالایی دارد\n  if (officialConfirmation) {\n    confidenceScore += 4;\n  }\n\n  /*\n    امتیاز فعلی معمولاً:\n\n    Specialist/Major news:\n    2 × 2 = 4\n\n    Official:\n    3 × 2 + 4 = 10\n  */\n\n  let confidenceLevel;\n\n  if (confidenceScore >= 8) {\n    confidenceLevel = 'High';\n\n  } else if (confidenceScore >= 4) {\n    confidenceLevel = 'Medium';\n\n  } else {\n    confidenceLevel = 'Low';\n  }\n\n  // --------------------------------\n  // 4. آیا Verification لازم است؟\n  // --------------------------------\n\n  let verificationRequired = false;\n\n  const verificationReasons = [];\n\n  // Risk متوسط یا بالا را با یک منبع تنها رها نمی‌کنیم\n  if (\n    data.risk_exists === true &&\n    Number(data.impact_score || 0) >= 3 &&\n    independentSources < 2\n  ) {\n    verificationRequired = true;\n\n    verificationReasons.push(\n      'meaningful_risk_single_source'\n    );\n  }\n\n  // اگر خود تحلیل گفته نیازمند investigation است\n  if (\n    data.management_signal === 'investigate'\n  ) {\n    verificationRequired = true;\n\n    verificationReasons.push(\n      'management_investigation'\n    );\n  }\n\n  // اقدام مدیریتی بر اساس یک منبع تنها\n  if (\n    data.management_signal === 'consider_action' &&\n    independentSources < 2\n  ) {\n    verificationRequired = true;\n\n    verificationReasons.push(\n      'management_action_single_source'\n    );\n  }\n\n  // منبع ضعیف\n  if (confidenceLevel === 'Low') {\n    verificationRequired = true;\n\n    verificationReasons.push(\n      'low_source_confidence'\n    );\n  }\n\n  output.push({\n    json: {\n      ...data,\n\n      source_tier: sourceTier,\n      source_quality_score: sourceQualityScore,\n\n      independent_sources: independentSources,\n      official_confirmation: officialConfirmation,\n\n      confidence_score_initial: confidenceScore,\n      confidence_level_initial: confidenceLevel,\n\n      verification_required: verificationRequired,\n      verification_reasons: verificationReasons\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2496,
+        192
+      ],
+      "id": "850eaac7-01d9-4a4f-a52b-f99c8034d327",
+      "name": "25 - Evidence & Confidence Engine"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.verification_required }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    },
+                    "id": "517faccc-b558-4f0c-91bb-67a3f1eda4e7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Verify"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "cfc922b6-d1ec-44aa-97e6-1e73fbb16f9b",
+                    "leftValue": "={{ $json.verification_required }}",
+                    "rightValue": false,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "No Verification"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2688,
+        192
+      ],
+      "id": "67946357-6f31-4342-8685-11a03f26c7b0",
+      "name": "26 - Route Verification"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst config = $('02 - OSINT Config').first().json;\n\nreturn items.map(item => {\n  const data = item.json;\n\n  const sourceId = String(data.source_id || '').trim();\n  const brandFa = String(data.primary_brand_fa || '').trim();\n  const brandEn = String(data.primary_brand || '').trim();\n\n  const keyClaim = String(data.key_claim || '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n\n  const originalDomain = String(data.source_domain || '')\n    .toLowerCase()\n    .replace(/^www\\./, '')\n    .trim();\n\n  /*\n    Query بر اساس خود Claim ساخته می‌شود،\n    نه صرفاً نام برند.\n  */\n  const verificationQuery =\n    `${brandFa} ${keyClaim}`.trim();\n\n  return {\n    json: {\n      ...data,\n\n      verification_query: verificationQuery,\n\n      verification_source_id: sourceId,\n\n      original_source_domain: originalDomain,\n\n      verification_lookback_days:\n        Number(config.lookback_days || 7),\n\n      verification_brand: brandEn,\n      verification_brand_fa: brandFa\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        0
+      ],
+      "id": "55842330-ea11-484c-b721-d142eacdaa66",
+      "name": "27 - Build Verification Queries"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  query: $json.verification_query,\n\n  topic: \"news\",\n\n  search_depth: \"basic\",\n\n  max_results: 5,\n\n  start_date: $now\n    .minus({\n      days: Number($json.verification_lookback_days || 7)\n    })\n    .toISODate(),\n\n  end_date: $now.toISODate(),\n\n  include_domains: [\n    \"irna.ir\",\n    \"isna.ir\",\n    \"mehrnews.com\",\n    \"tasnimnews.com\",\n    \"digiato.com\",\n    \"way2pay.ir\",\n    \"zoomit.ir\"\n  ],\n\n  exclude_domains: [\n  \"x.com\",\n  \"twitter.com\",\n  \"instagram.com\",\n  \"facebook.com\",\n  \"t.me\",\n  \"telegram.me\"\n],\n\n  max_results: 10,\n\n  include_answer: false,\n\n  include_raw_content: false,\n\n  include_images: false\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3056,
+        0
+      ],
+      "id": "5c5ad203-0b21-479d-8a2d-592f08fe5dae",
+      "name": "28 - Tavily Cross Validation API",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "REPLACE_WITH_TAVILY_BEARER_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const searchItems = $input.all();\n\nconst verificationInputs =\n  $('27 - Build Verification Queries').all();\n\nconst allowedDomains = new Set([\n  'irna.ir',\n  'isna.ir',\n  'mehrnews.com',\n  'tasnimnews.com',\n  'digiato.com',\n  'way2pay.ir',\n  'zoomit.ir'\n]);\n\n// استخراج Domain از URL\n// این نسخه برای URLهای فارسی/Encode شده هم مقاوم‌تر است.\nfunction getDomain(url) {\n  const value = String(url || '').trim();\n\n  const match = value.match(\n    /^https?:\\/\\/([^\\/?#]+)/i\n  );\n\n  if (!match) {\n    return '';\n  }\n\n  return match[1]\n    .toLowerCase()\n    .replace(/^www\\./, '')\n    .trim();\n}\n\nconst output = [];\n\nfor (let i = 0; i < searchItems.length; i++) {\n\n  const response = searchItems[i].json;\n\n  // ورودی متناظر از Node 27\n  const verificationInput =\n    verificationInputs[i]?.json ||\n    verificationInputs[0]?.json ||\n    {};\n\n  // پشتیبانی از چند ساختار احتمالی HTTP Request\n  let results = [];\n\n  if (Array.isArray(response.results)) {\n\n    results = response.results;\n\n  } else if (\n    response.body &&\n    Array.isArray(response.body.results)\n  ) {\n\n    results = response.body.results;\n\n  } else if (\n    response.data &&\n    Array.isArray(response.data.results)\n  ) {\n\n    results = response.data.results;\n  }\n\n  // Domain منبع اصلی خبر\n  const originalDomain = String(\n    verificationInput.original_source_domain || ''\n  )\n    .toLowerCase()\n    .replace(/^www\\./, '')\n    .trim();\n\n  const acceptedResults = [];\n  const rejectedResults = [];\n  const allResultDomains = [];\n\n  // یک Domain فقط یک Independent Source محسوب شود\n  const seenDomains = new Set();\n\n  for (const result of results) {\n\n    const url = String(result.url || '').trim();\n\n    const domain = getDomain(url);\n\n    allResultDomains.push(\n      domain || 'invalid-url'\n    );\n\n    // -------------------------\n    // URL نامعتبر\n    // -------------------------\n    if (!domain) {\n\n      rejectedResults.push({\n        title: String(result.title || '').trim(),\n        url,\n        domain: '',\n        reason: 'invalid_url'\n      });\n\n      continue;\n    }\n\n    // -------------------------\n    // Domain خارج از Allowlist\n    // -------------------------\n    if (!allowedDomains.has(domain)) {\n\n      rejectedResults.push({\n        title: String(result.title || '').trim(),\n        url,\n        domain,\n        reason: 'domain_not_allowed'\n      });\n\n      continue;\n    }\n\n    // -------------------------\n    // همان Source اصلی خبر\n    // مستقل محسوب نمی‌شود\n    // -------------------------\n    if (domain === originalDomain) {\n\n      rejectedResults.push({\n        title: String(result.title || '').trim(),\n        url,\n        domain,\n        reason: 'same_as_original_source'\n      });\n\n      continue;\n    }\n\n    // -------------------------\n    // چند نتیجه از یک Domain\n    // فقط یک Independent Source\n    // -------------------------\n    if (seenDomains.has(domain)) {\n\n      rejectedResults.push({\n        title: String(result.title || '').trim(),\n        url,\n        domain,\n        reason: 'duplicate_domain'\n      });\n\n      continue;\n    }\n\n    seenDomains.add(domain);\n\n    // -------------------------\n    // Candidate معتبر\n    // -------------------------\n    acceptedResults.push({\n\n      title:\n        String(result.title || '').trim(),\n\n      url,\n\n      domain,\n\n      content:\n        String(result.content || '').trim(),\n\n      score:\n        result.score ?? null,\n\n      published_date:\n        result.published_date || ''\n    });\n  }\n\n  output.push({\n    json: {\n\n      // Claim اصلی\n      source_id:\n        verificationInput.verification_source_id ||\n        verificationInput.source_id ||\n        '',\n\n      key_claim:\n        verificationInput.key_claim || '',\n\n      original_source_domain:\n        originalDomain,\n\n      verification_query:\n        verificationInput.verification_query || '',\n\n      // -------------------------\n      // خروجی اصلی\n      // -------------------------\n\n      candidate_count:\n        acceptedResults.length,\n\n      candidate_domains:\n        [...seenDomains],\n\n      verification_candidates:\n        acceptedResults,\n\n      // -------------------------\n      // Debug\n      // بعداً می‌توانیم حذفشان کنیم\n      // -------------------------\n\n      debug_result_count:\n        results.length,\n\n      debug_result_domains:\n        allResultDomains,\n\n      rejected_results:\n        rejectedResults\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3232,
+        0
+      ],
+      "id": "14def9f2-8df3-4b60-a9e6-bb98be58de14",
+      "name": "29 - Filter Verification Sources"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.candidate_count }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    },
+                    "id": "91d78414-25e0-4022-bfa9-d7628e65ff0c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Evidence Found"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4426e143-4bcc-4eeb-adb7-0624957b1c13",
+                    "leftValue": "={{ $json.candidate_count }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "No Evidence Found"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        3424,
+        0
+      ],
+      "id": "8b1b5ad8-079e-4ab1-a030-f63ded46471b",
+      "name": "30 - Route Verification Evidence"
+    },
+    {
+      "parameters": {
+        "jsCode": "const verificationItems = $input.all();\n\n// دیتای کامل تحلیل‌شده قبل از Verification\nconst analyzedItems =\n  $('25 - Evidence & Confidence Engine').all();\n\n// Map برای پیدا کردن خبر اصلی با Source ID\nconst articleMap = new Map();\n\nfor (const item of analyzedItems) {\n  const sourceId = String(\n    item.json.source_id || ''\n  ).trim();\n\n  if (sourceId) {\n    articleMap.set(sourceId, item.json);\n  }\n}\n\nconst output = [];\n\nfor (const item of verificationItems) {\n\n  const verification = item.json;\n\n  const sourceId = String(\n    verification.source_id || ''\n  ).trim();\n\n  const originalArticle =\n    articleMap.get(sourceId);\n\n  // اگر Source ID پیدا نشد، Guardrail\n  if (!originalArticle) {\n    throw new Error(\n      `Original article not found for ${sourceId}`\n    );\n  }\n\n  /*\n    چون تأیید مستقل پیدا نشده:\n    - خبر حذف نمی‌شود\n    - Confidence افزایش پیدا نمی‌کند\n    - همان Confidence اولیه حفظ می‌شود\n  */\n\n  output.push({\n    json: {\n      ...originalArticle,\n\n      verification_attempted: true,\n\n      verification_status:\n        'no_independent_evidence_found',\n\n      independent_sources:\n        Number(\n          originalArticle.independent_sources || 1\n        ),\n\n      verification_candidate_count: 0,\n\n      verification_sources: [],\n\n      final_confidence_score:\n        originalArticle.confidence_score_initial,\n\n      final_confidence_level:\n        originalArticle.confidence_level_initial,\n\n      verification_note:\n        'No independent confirmation was found in the approved verification sources.'\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3696,
+        208
+      ],
+      "id": "55760cba-8f7e-43bc-b79c-213fcd987d40",
+      "name": "31 - Finalize No Evidence"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an OSINT evidence verification analyst.\n\nYou will receive:\n\n1. One original key claim.\n2. The Source ID of the original article.\n3. One or more independent candidate sources found through public web search.\n\nYour ONLY task is to determine whether each candidate source:\n\n- supports the original claim,\n- contradicts the original claim,\n- is related to the same topic but does not verify the claim,\n- or is unrelated.\n\nYou must evaluate the actual evidence contained in each candidate.\n\nIMPORTANT:\n\nA source is NOT considered supporting evidence merely because:\n- it mentions the same company,\n- it discusses the same general topic,\n- it contains similar keywords,\n- it was returned by the search engine.\n\nTo classify a candidate as \"supports\", the candidate must provide meaningful evidence consistent with the original key claim.\n\nTo classify a candidate as \"contradicts\", it must provide evidence that materially conflicts with the original claim.\n\nUse \"related_not_verifying\" when the candidate discusses the same topic but does not actually confirm or refute the claim.\n\nUse \"unrelated\" when the candidate is not materially relevant to the claim.\n\nFor each candidate return:\n\n- candidate_url\n- candidate_domain\n- relation\n- evidence_score\n- reason\n\nrelation must be EXACTLY one of:\n\n- supports\n- contradicts\n- related_not_verifying\n- unrelated\n\nevidence_score must be an integer from 0 to 100.\n\nScoring guidance:\n\n90-100 = very strong direct evidence\n70-89 = clear evidence\n50-69 = partial or ambiguous evidence\n20-49 = weak relationship\n0-19 = unrelated\n\nThe reason must be one short Persian sentence.\n\nIMPORTANT RULES:\n\n- Do not use outside knowledge.\n- Only use the provided candidate content.\n- Do not invent evidence.\n- Do not invent URLs or domains.\n- Preserve candidate_url exactly.\n- Return exactly one result for every candidate.\n- Return ONLY valid JSON.\n- Do not use markdown.\n- Do not add explanations outside JSON.\n\nReturn exactly this structure:\n\n{\n  \"source_id\": \"SRC-001\",\n  \"results\": [\n    {\n      \"candidate_url\": \"https://example.com/article\",\n      \"candidate_domain\": \"example.com\",\n      \"relation\": \"supports\",\n      \"evidence_score\": 85,\n      \"reason\": \"این منبع به‌طور مستقل همان ادعای اصلی را تأیید می‌کند.\"\n    }\n  ]\n}\n\nORIGINAL SOURCE ID:\n\n{{ $json.source_id }}\n\nORIGINAL KEY CLAIM:\n\n{{ $json.key_claim }}\n\nCANDIDATE SOURCES:\n\n{{ JSON.stringify($json.verification_candidates) }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        3696,
+        -160
+      ],
+      "id": "63d25cfd-0a30-44ab-9ba0-f4fc2f3ea30e",
+      "name": "32 - AI Evidence Check"
+    },
+    {
+      "parameters": {
+        "model": "openrouter/free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        3744,
+        32
+      ],
+      "id": "99aabb82-22ef-4721-a70f-a1fe11835736",
+      "name": "32A - OpenRouter Model - Evidence",
+      "credentials": {
+        "openRouterApi": {
+          "id": "REPLACE_ME",
+          "name": "REPLACE_WITH_OPENROUTER_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiItems = $input.all();\n\n// داده کامل خبرها قبل از Verification\nconst analyzedItems =\n  $('25 - Evidence & Confidence Engine').all();\n\n// Candidateهایی که در Node 29 تأیید اولیه شده‌اند\nconst verificationItems =\n  $('29 - Filter Verification Sources').all();\n\nconst articleMap = new Map();\nconst verificationMap = new Map();\n\nfor (const item of analyzedItems) {\n  const sourceId = String(\n    item.json.source_id || ''\n  ).trim();\n\n  if (sourceId) {\n    articleMap.set(sourceId, item.json);\n  }\n}\n\nfor (const item of verificationItems) {\n  const sourceId = String(\n    item.json.source_id || ''\n  ).trim();\n\n  if (sourceId) {\n    verificationMap.set(sourceId, item.json);\n  }\n}\n\nconst allowedRelations = new Set([\n  'supports',\n  'contradicts',\n  'related_not_verifying',\n  'unrelated'\n]);\n\nconst output = [];\n\nfor (const item of aiItems) {\n\n  let text = String(item.json.text || '').trim();\n\n  // حذف ```json در صورت وجود\n  text = text\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/\\s*```$/i, '')\n    .trim();\n\n  let parsed;\n\n  try {\n    parsed = JSON.parse(text);\n  } catch (error) {\n    throw new Error(\n      `Evidence AI returned invalid JSON: ${error.message}`\n    );\n  }\n\n  const sourceId = String(\n    parsed.source_id || ''\n  ).trim();\n\n  if (!articleMap.has(sourceId)) {\n    throw new Error(\n      `Invalid or invented Source ID: ${sourceId}`\n    );\n  }\n\n  const originalArticle =\n    articleMap.get(sourceId);\n\n  const verificationData =\n    verificationMap.get(sourceId);\n\n  if (!verificationData) {\n    throw new Error(\n      `Verification candidates not found for ${sourceId}`\n    );\n  }\n\n  if (!Array.isArray(parsed.results)) {\n    throw new Error(\n      `Evidence results array missing for ${sourceId}`\n    );\n  }\n\n  // Candidateهای مجاز واقعی\n  const allowedCandidates = new Map();\n\n  for (\n    const candidate of\n    verificationData.verification_candidates || []\n  ) {\n    const url = String(candidate.url || '').trim();\n\n    if (url) {\n      allowedCandidates.set(url, candidate);\n    }\n  }\n\n  const validatedEvidence = [];\n\n  const supportingDomains = new Set();\n  const contradictingDomains = new Set();\n\n  for (const result of parsed.results) {\n\n    const url = String(\n      result.candidate_url || ''\n    ).trim();\n\n    const domain = String(\n      result.candidate_domain || ''\n    )\n      .toLowerCase()\n      .replace(/^www\\./, '')\n      .trim();\n\n    // AI حق ساختن URL جدید ندارد\n    if (!allowedCandidates.has(url)) {\n      throw new Error(\n        `AI invented or changed candidate URL: ${url}`\n      );\n    }\n\n    const originalCandidate =\n      allowedCandidates.get(url);\n\n    const expectedDomain = String(\n      originalCandidate.domain || ''\n    )\n      .toLowerCase()\n      .replace(/^www\\./, '')\n      .trim();\n\n    if (domain !== expectedDomain) {\n      throw new Error(\n        `Candidate domain mismatch for ${url}`\n      );\n    }\n\n    const relation = String(\n      result.relation || ''\n    ).trim();\n\n    if (!allowedRelations.has(relation)) {\n      throw new Error(\n        `Invalid evidence relation for ${url}: ${relation}`\n      );\n    }\n\n    const evidenceScore =\n      Number(result.evidence_score);\n\n    if (\n      !Number.isFinite(evidenceScore) ||\n      evidenceScore < 0 ||\n      evidenceScore > 100\n    ) {\n      throw new Error(\n        `Invalid evidence score for ${url}`\n      );\n    }\n\n    const evidence = {\n      url,\n      domain,\n      relation,\n      evidence_score:\n        Math.round(evidenceScore),\n\n      reason:\n        String(result.reason || '').trim()\n    };\n\n    validatedEvidence.push(evidence);\n\n    // فقط Evidence نسبتاً قوی را حساب می‌کنیم\n    if (\n      relation === 'supports' &&\n      evidenceScore >= 70\n    ) {\n      supportingDomains.add(domain);\n    }\n\n    if (\n      relation === 'contradicts' &&\n      evidenceScore >= 70\n    ) {\n      contradictingDomains.add(domain);\n    }\n  }\n\n  const supportingSourceCount =\n    supportingDomains.size;\n\n  const contradictingSourceCount =\n    contradictingDomains.size;\n\n  // Source اصلی همیشه یک منبع است\n  const independentSources =\n    1 + supportingSourceCount;\n\n  let verificationStatus;\n  let finalConfidenceScore =\n    Number(\n      originalArticle.confidence_score_initial || 0\n    );\n\n  let finalConfidenceLevel =\n    originalArticle.confidence_level_initial ||\n    'Low';\n\n  let needsHumanReview = false;\n\n  // --------------------------------\n  // Evidence متناقض\n  // --------------------------------\n  if (contradictingSourceCount > 0) {\n\n    verificationStatus =\n      'conflicting_evidence';\n\n    needsHumanReview = true;\n\n    // تعارض را High Confidence نمی‌کنیم\n    finalConfidenceScore =\n      Math.min(finalConfidenceScore, 3);\n\n    finalConfidenceLevel = 'Low';\n\n  // --------------------------------\n  // تأیید مستقل پیدا شده\n  // --------------------------------\n  } else if (supportingSourceCount > 0) {\n\n    verificationStatus =\n      'independently_supported';\n\n    /*\n      یک منبع مستقل معتبر یعنی:\n      Source اصلی + حداقل یک Source مستقل\n\n      برای همین +4 می‌دهیم تا\n      یک خبر Medium معمولی با تأیید مستقل\n      بتواند به High برسد.\n    */\n    finalConfidenceScore = Math.min(\n      10,\n      finalConfidenceScore +\n      (supportingSourceCount * 4)\n    );\n\n    if (finalConfidenceScore >= 8) {\n      finalConfidenceLevel = 'High';\n\n    } else if (finalConfidenceScore >= 4) {\n      finalConfidenceLevel = 'Medium';\n\n    } else {\n      finalConfidenceLevel = 'Low';\n    }\n\n  // --------------------------------\n  // Candidate بود ولی Claim را تأیید نکرد\n  // --------------------------------\n  } else {\n\n    verificationStatus =\n      'candidate_found_but_not_verified';\n\n    // Confidence اولیه حفظ می‌شود\n  }\n\n  output.push({\n    json: {\n      ...originalArticle,\n\n      verification_attempted: true,\n\n      verification_status:\n        verificationStatus,\n\n      supporting_independent_sources:\n        supportingSourceCount,\n\n      contradicting_sources:\n        contradictingSourceCount,\n\n      independent_sources:\n        independentSources,\n\n      verification_sources:\n        validatedEvidence,\n\n      final_confidence_score:\n        finalConfidenceScore,\n\n      final_confidence_level:\n        finalConfidenceLevel,\n\n      needs_human_review:\n        needsHumanReview\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4000,
+        -160
+      ],
+      "id": "e6254656-3676-4a0a-bbe6-4a93b8163fa9",
+      "name": "33 - Validate Evidence & Finalize Confidence"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n\n  const data = item.json;\n\n  return {\n    json: {\n      ...data,\n\n      // برای این خبر Cross-validation لازم تشخیص داده نشده\n      verification_attempted: false,\n\n      verification_status: 'not_required',\n\n      // همان Source اولیه\n      independent_sources:\n        Number(data.independent_sources || 1),\n\n      supporting_independent_sources: 0,\n\n      contradicting_sources: 0,\n\n      verification_sources: [],\n\n      // Confidence اولیه، Confidence نهایی هم می‌شود\n      final_confidence_score:\n        Number(data.confidence_score_initial || 0),\n\n      final_confidence_level:\n        data.confidence_level_initial || 'Low',\n\n      needs_human_review: false,\n\n      verification_note:\n        'Cross-validation was not required by the evidence rules.'\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        368
+      ],
+      "id": "cdea95d8-08cd-4c01-bb07-7101b4df19df",
+      "name": "34 - Finalize No Verification"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        4016,
+        320
+      ],
+      "id": "0ed0dd01-0359-4a90-9b1c-6e8ef48f3894",
+      "name": "35 - Merge Final Trusted Dataset"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst stats = {\n  total_articles: items.length,\n\n  by_brand: {},\n  by_category: {},\n  by_sentiment: {},\n\n  risks: {\n    total: 0,\n    High: 0,\n    Medium: 0,\n    Low: 0\n  },\n\n  opportunities: {\n    total: 0\n  },\n\n  confidence: {\n    High: 0,\n    Medium: 0,\n    Low: 0\n  },\n\n  verification: {}\n};\n\nconst articles = [];\n\nfor (const item of items) {\n\n  const d = item.json;\n\n  const brand =\n    d.primary_brand || 'Unknown';\n\n  const brandFa =\n    d.primary_brand_fa || brand;\n\n  const category =\n    d.category || 'Other';\n\n  const sentiment =\n    d.sentiment || 'neutral';\n\n  const confidence =\n    d.final_confidence_level || 'Low';\n\n  const verificationStatus =\n    d.verification_status || 'unknown';\n\n  // -------------------------\n  // Brand statistics\n  // -------------------------\n\n  if (!stats.by_brand[brand]) {\n    stats.by_brand[brand] = {\n      name_fa: brandFa,\n      mentions: 0,\n      risks: 0,\n      opportunities: 0,\n      positive: 0,\n      neutral: 0,\n      negative: 0,\n      mixed: 0\n    };\n  }\n\n  stats.by_brand[brand].mentions += 1;\n\n  if (\n    Object.prototype.hasOwnProperty.call(\n      stats.by_brand[brand],\n      sentiment\n    )\n  ) {\n    stats.by_brand[brand][sentiment] += 1;\n  }\n\n  // -------------------------\n  // Category statistics\n  // -------------------------\n\n  stats.by_category[category] =\n    (stats.by_category[category] || 0) + 1;\n\n  // -------------------------\n  // Sentiment statistics\n  // -------------------------\n\n  stats.by_sentiment[sentiment] =\n    (stats.by_sentiment[sentiment] || 0) + 1;\n\n  // -------------------------\n  // Risk statistics\n  // -------------------------\n\n  if (d.risk_exists === true) {\n\n    stats.risks.total += 1;\n    stats.by_brand[brand].risks += 1;\n\n    const level =\n      d.impact_level || 'Low';\n\n    if (\n      Object.prototype.hasOwnProperty.call(\n        stats.risks,\n        level\n      )\n    ) {\n      stats.risks[level] += 1;\n    }\n  }\n\n  // -------------------------\n  // Opportunity statistics\n  // -------------------------\n\n  if (d.opportunity_exists === true) {\n\n    stats.opportunities.total += 1;\n    stats.by_brand[brand].opportunities += 1;\n  }\n\n  // -------------------------\n  // Confidence\n  // -------------------------\n\n  if (\n    Object.prototype.hasOwnProperty.call(\n      stats.confidence,\n      confidence\n    )\n  ) {\n    stats.confidence[confidence] += 1;\n  }\n\n  // -------------------------\n  // Verification\n  // -------------------------\n\n  stats.verification[verificationStatus] =\n    (stats.verification[verificationStatus] || 0) + 1;\n\n  // -------------------------\n  // Compact evidence record\n  // -------------------------\n\n  articles.push({\n\n    source_id:\n      d.source_id,\n\n    brand,\n    brand_fa:\n      brandFa,\n\n    title:\n      d.title,\n\n    source:\n      d.source,\n\n    url:\n      d.url,\n\n    published_date:\n      d.published_date,\n\n    category,\n    sentiment,\n\n    short_summary:\n      d.short_summary,\n\n    key_claim:\n      d.key_claim,\n\n    risk: {\n      exists:\n        d.risk_exists === true,\n\n      type:\n        d.risk_type || 'none',\n\n      description:\n        d.risk_description || '',\n\n      impact_score:\n        Number(d.impact_score || 0),\n\n      impact_level:\n        d.impact_level || 'None'\n    },\n\n    opportunity: {\n      exists:\n        d.opportunity_exists === true,\n\n      type:\n        d.opportunity_type || 'none',\n\n      description:\n        d.opportunity_description || ''\n    },\n\n    management_signal:\n      d.management_signal || 'informational',\n\n    confidence:\n      confidence,\n\n    verification_status:\n      verificationStatus,\n\n    independent_sources:\n      Number(d.independent_sources || 1)\n  });\n}\n\nreturn [\n  {\n    json: {\n      report_context: {\n        company: 'Digikala',\n        company_fa: 'دیجی‌کالا',\n        analysis_type: 'Commercial OSINT',\n        generated_at: new Date().toISOString()\n      },\n\n      statistics: stats,\n\n      evidence_articles: articles\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4224,
+        336
+      ],
+      "id": "8f76eb9e-1078-4a94-b1b7-3057e27f2930",
+      "name": "36 - Build Executive Brief Input"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a senior Commercial OSINT analyst preparing an executive intelligence brief for Digikala management.\n\nThis task is descriptive business intelligence summarization based only on already validated public evidence.\n\nDo not provide legal, financial, investment, regulatory, security, or professional advice.\n\nDo not make decisions on behalf of the company.\n\nRecommended actions must only be framed as non-binding management considerations such as:\n\n- monitor\n- investigate\n- validate\n- compare\n- review\n- consider\n\nThe output is an internal analytical summary, not professional advice.\n\nYou will receive:\n\n1. Aggregated statistics.\n2. A list of validated evidence articles.\n3. Source IDs that are the ONLY allowed citations.\n\nYour task is to synthesize the evidence into a concise Persian executive analysis.\n\n\n==================================================\nGENERAL EVIDENCE RULES\n==================================================\n\n- Use ONLY the provided evidence.\n- Do not use outside knowledge.\n- Do not invent facts.\n- Do not invent Source IDs.\n- Never cite a Source ID that does not exist in the input.\n- Preserve Source IDs exactly as provided.\n- Every factual analytical statement must be supported by one or more valid Source IDs.\n- Do not treat absence of news as evidence that nothing happened.\n- Do not exaggerate a single-source observation into a market-wide trend.\n- Preserve uncertainty.\n- Treat Medium or Low confidence evidence cautiously.\n- If verification_status indicates that no independent evidence was found, do not present the claim as independently confirmed.\n- Do not turn positive sentiment into an opportunity.\n- Do not turn negative sentiment into a risk unless risk.exists = true.\n- Do not create new risks or opportunities beyond those explicitly identified in the validated evidence.\n- Do not change impact scores or impact levels.\n- Do not change confidence levels.\n- Do not create professional advice or binding recommendations.\n\nThe final report must be written in Persian.\n\n\n==================================================\n1. executive_summary\n==================================================\n\nProduce 2 to 4 concise management-level findings.\n\nEach finding must contain:\n\n- text\n- source_ids\n\nThe summary must focus on meaningful business developments rather than simply repeating headlines.\n\nKeep the tone analytical, cautious, and descriptive.\n\nEvery finding must be traceable to the cited Source IDs.\n\nDo not state uncertain claims as confirmed facts.\n\n\n==================================================\n2. company_media_topics\n==================================================\n\nIdentify the main topics currently associated with Digikala in the validated evidence.\n\nFor each topic return:\n\n- topic\n- insight\n- source_ids\n\nReturn a maximum of 5 topics.\n\nOnly report topics supported by the provided evidence.\n\nDo not infer a broader media trend from a single article unless the wording clearly states that the evidence is limited.\n\nIf only one source supports a topic, use cautious wording.\n\n\n==================================================\n3. competitor_focus\n==================================================\n\nEvaluate the available evidence for these competitors:\n\n- Torob\n- Snapp Shop\n- Technolife\n\nFor each competitor return:\n\n- brand\n- focus\n- evidence_level\n- source_ids\n\nevidence_level must be exactly one of:\n\n- sufficient\n- limited\n- insufficient\n\nSTRICT RULES:\n\n- Use only evidence articles whose assigned brand is the relevant competitor.\n- Do not use Digikala articles to invent a competitor focus.\n- Do not use outside knowledge about the competitor.\n- Do not infer a known business model or strategy from general knowledge.\n\nIf reliable evidence exists:\n\n- summarize only what the evidence suggests,\n- use the relevant Source IDs.\n\nIf there is little evidence:\n\n- evidence_level = \"limited\"\n\nIf there is no reliable evidence:\n\n- evidence_level = \"insufficient\"\n- clearly state in Persian that available evidence is insufficient\n- source_ids must be []\n\nDo not invent a focus area when evidence is insufficient.\n\n\n==================================================\n4. top_risks\n==================================================\n\nReturn ONLY risks explicitly identified in the validated input evidence.\n\nSTRICT ELIGIBILITY RULE:\n\nAn article may support a risk ONLY when its input contains:\n\nrisk.exists = true\n\nIf:\n\nrisk.exists = false\n\nthe article MUST NOT be used to create or support a risk.\n\nFor each risk return:\n\n- title\n- description\n- risk_type\n- impact_level\n- impact_score\n- confidence\n- source_ids\n\nSTRICT RULES:\n\n- risk_type must be based on risk.type from the evidence.\n- description must remain consistent with risk.description from the evidence.\n- impact_level MUST come directly from the input evidence.\n- impact_score MUST come directly from the input evidence.\n- confidence MUST come directly from the final confidence value in the supporting evidence.\n- Do NOT recalculate impact.\n- Do NOT increase or decrease impact.\n- Do NOT invent a new risk.\n- Do NOT infer a risk merely from negative sentiment.\n- source_ids must contain ONLY articles where risk.exists = true.\n\nReturn a maximum of 5 risks.\n\nIf no article has:\n\nrisk.exists = true\n\nreturn:\n\n\"top_risks\": []\n\n\n==================================================\n5. opportunities\n==================================================\n\nIdentify ONLY opportunities that are explicitly marked as opportunities in the validated input evidence.\n\nSTRICT ELIGIBILITY RULE:\n\nAn article may support an opportunity ONLY when its input data contains:\n\nopportunity.exists = true\n\nIf:\n\nopportunity.exists = false\n\nthat article MUST NOT be used to create or support an opportunity.\n\nDo NOT infer a new opportunity from:\n\n- positive sentiment,\n- revenue growth,\n- profitability,\n- dividends,\n- good financial performance,\n- market success,\n- brand visibility,\n- general positive news,\n- increased attention,\n- or any other positive observation,\n\nunless the supporting input article explicitly contains:\n\nopportunity.exists = true\n\nFor each opportunity return:\n\n- title\n- description\n- opportunity_type\n- confidence\n- source_ids\n\nSTRICT RULES:\n\n- opportunity_type must be based on opportunity.type from the evidence.\n- description must remain consistent with opportunity.description from the evidence.\n- confidence must come from the final confidence value of the supporting evidence.\n- source_ids must contain ONLY Source IDs whose input article has opportunity.exists = true.\n- Do not cite articles with opportunity.exists = false.\n- Do not create investment, market, strategic, financial, or growth opportunities unless explicitly identified in the evidence.\n- Do not convert a positive article into an opportunity.\n\nReturn a maximum of 5 opportunities.\n\nIf there are no articles with:\n\nopportunity.exists = true\n\nreturn:\n\n\"opportunities\": []\n\n\n==================================================\n6. recommended_actions\n==================================================\n\nProvide 2 to 5 non-binding management considerations based on the validated evidence.\n\nEach item must contain:\n\n- priority\n- action\n- rationale\n- source_ids\n\npriority must be exactly one of:\n\n- High\n- Medium\n- Low\n\nRecommended actions must remain cautious and evidence-based.\n\nPrefer wording equivalent to:\n\n- monitor\n- investigate\n- validate\n- compare\n- review\n- consider\n\nExamples of acceptable Persian management considerations:\n\n- پایش مستمر روند مشاهده‌شده\n- بررسی بیشتر موضوع شناسایی‌شده\n- اعتبارسنجی ادعا با منابع مستقل بیشتر\n- مقایسه وضعیت با داده‌های دوره بعد\n- بررسی داخلی اثر احتمالی موضوع\n- رصد واکنش مشتریان یا بازار\n- بررسی روند رقابتی در گزارش‌های آتی\n\nSTRICT RULES:\n\n- Recommendations must be supported by the cited evidence.\n- Do not recommend major operational change based only on weak evidence.\n- If confidence is Medium or Low, prefer monitor, investigate, validate, compare, or review.\n- If independent verification was not found, do not recommend strong action based on that claim.\n- Do not recommend buying or selling assets.\n- Do not provide investment advice.\n- Do not provide legal advice.\n- Do not recommend regulatory enforcement.\n- Do not provide binding instructions.\n- Do not make decisions on behalf of management.\n\n\n==================================================\n7. limitations\n==================================================\n\nReturn a short list of important analytical limitations that actually apply to the input.\n\nPossible limitations may include:\n\n- small number of relevant articles,\n- limited evidence for competitors,\n- lack of independent confirmation,\n- reliance only on public information,\n- short seven-day observation window,\n- incomplete media coverage,\n- search or RSS coverage limitations,\n- absence of reliable evidence for some brands.\n\nDo not invent limitations that do not apply.\n\n\n==================================================\nOUTPUT RULES\n==================================================\n\nReturn ONLY valid JSON.\n\nDo not use Markdown.\n\nDo not wrap the answer in ```json or ```.\n\nDo not add explanations before or after the JSON.\n\nDo not return safety notes.\n\nDo not return disclaimers.\n\nDo not return headings outside the JSON.\n\nDo not return commentary outside the JSON.\n\nNever invent a Source ID.\n\nEvery Source ID used must exist in VALIDATED EVIDENCE ARTICLES.\n\nFor top_risks:\nEvery cited article must have risk.exists = true.\n\nFor opportunities:\nEvery cited article must have opportunity.exists = true.\n\nIf there is insufficient evidence for a section, use an empty array where appropriate.\n\nReturn EXACTLY this JSON structure:\n\n{\n  \"executive_summary\": [\n    {\n      \"text\": \"خلاصه مدیریتی\",\n      \"source_ids\": [\"SRC-001\"]\n    }\n  ],\n\n  \"company_media_topics\": [\n    {\n      \"topic\": \"موضوع\",\n      \"insight\": \"تحلیل کوتاه مبتنی بر شواهد\",\n      \"source_ids\": [\"SRC-001\"]\n    }\n  ],\n\n  \"competitor_focus\": [\n    {\n      \"brand\": \"Torob\",\n      \"focus\": \"شرح تمرکز رقیب یا توضیح کمبود شواهد\",\n      \"evidence_level\": \"insufficient\",\n      \"source_ids\": []\n    },\n    {\n      \"brand\": \"Snapp Shop\",\n      \"focus\": \"شرح تمرکز رقیب یا توضیح کمبود شواهد\",\n      \"evidence_level\": \"insufficient\",\n      \"source_ids\": []\n    },\n    {\n      \"brand\": \"Technolife\",\n      \"focus\": \"شرح تمرکز رقیب یا توضیح کمبود شواهد\",\n      \"evidence_level\": \"insufficient\",\n      \"source_ids\": []\n    }\n  ],\n\n  \"top_risks\": [\n    {\n      \"title\": \"عنوان ریسک\",\n      \"description\": \"شرح کوتاه ریسک\",\n      \"risk_type\": \"Competitive\",\n      \"impact_level\": \"Medium\",\n      \"impact_score\": 3,\n      \"confidence\": \"Medium\",\n      \"source_ids\": [\"SRC-002\"]\n    }\n  ],\n\n  \"opportunities\": [\n    {\n      \"title\": \"عنوان فرصت\",\n      \"description\": \"شرح کوتاه فرصت\",\n      \"opportunity_type\": \"Market Growth\",\n      \"confidence\": \"Medium\",\n      \"source_ids\": [\"SRC-005\"]\n    }\n  ],\n\n  \"recommended_actions\": [\n    {\n      \"priority\": \"Medium\",\n      \"action\": \"بررسی بیشتر روند مشاهده‌شده\",\n      \"rationale\": \"این موضوع بر اساس شواهد عمومی موجود نیازمند بررسی و پایش بیشتر است.\",\n      \"source_ids\": [\"SRC-002\"]\n    }\n  ],\n\n  \"limitations\": [\n    \"تعداد محدود اخبار مرتبط در بازه مورد بررسی.\"\n  ]\n}\n\n\n==================================================\nINPUT STATISTICS\n==================================================\n\n{{ JSON.stringify($json.statistics) }}\n\n\n==================================================\nVALIDATED EVIDENCE ARTICLES\n==================================================\n\n{{ JSON.stringify($json.evidence_articles) }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        4400,
+        336
+      ],
+      "id": "98c29052-c39c-4d85-b297-1395f5b4d253",
+      "name": "37 - AI Executive Analysis"
+    },
+    {
+      "parameters": {
+        "model": "liquid/lfm-2.5-2.6b:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        576
+      ],
+      "id": "71b6aaa4-c408-4000-9af1-437d222c5120",
+      "name": "37A - OpenRouter Model - Executive",
+      "credentials": {
+        "openRouterApi": {
+          "id": "REPLACE_ME",
+          "name": "REPLACE_WITH_OPENROUTER_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiItems = $input.all();\n\n// دیتاست معتبر نهایی\nconst trustedItems =\n  $('35 - Merge Final Trusted Dataset').all();\n\n// Source IDهای مجاز\nconst allowedSources = new Map();\n\nfor (const item of trustedItems) {\n  const sourceId = String(\n    item.json.source_id || ''\n  ).trim();\n\n  if (sourceId) {\n    allowedSources.set(sourceId, item.json);\n  }\n}\n\n// در اجرای فعلی باید چیزی مثل:\n// SRC-001\n// SRC-002\n// SRC-005\n// داشته باشیم.\n\nconst output = [];\n\nfunction validateSourceIds(sourceIds, sectionName) {\n\n  if (!Array.isArray(sourceIds)) {\n    throw new Error(\n      `source_ids must be an array in ${sectionName}`\n    );\n  }\n\n  for (const sourceId of sourceIds) {\n\n    const id = String(sourceId || '').trim();\n\n    if (!allowedSources.has(id)) {\n      throw new Error(\n        `Invalid or invented citation \"${id}\" in ${sectionName}`\n      );\n    }\n  }\n}\n\nfor (const item of aiItems) {\n\n  let text = String(item.json.text || '').trim();\n\n  text = text\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/\\s*```$/i, '')\n    .trim();\n\n  let report;\n\n  try {\n    report = JSON.parse(text);\n  } catch (error) {\n    throw new Error(\n      `Executive Analysis returned invalid JSON: ${error.message}`\n    );\n  }\n\n  // --------------------------------\n  // Executive Summary\n  // --------------------------------\n\n  if (!Array.isArray(report.executive_summary)) {\n    throw new Error(\n      'executive_summary must be an array'\n    );\n  }\n\n  for (const finding of report.executive_summary) {\n\n    validateSourceIds(\n      finding.source_ids,\n      'executive_summary'\n    );\n  }\n\n  // --------------------------------\n  // Company Media Topics\n  // --------------------------------\n\n  if (!Array.isArray(report.company_media_topics)) {\n    throw new Error(\n      'company_media_topics must be an array'\n    );\n  }\n\n  for (const topic of report.company_media_topics) {\n\n    validateSourceIds(\n      topic.source_ids,\n      'company_media_topics'\n    );\n  }\n\n  // --------------------------------\n  // Competitor Focus\n  // --------------------------------\n\n  if (!Array.isArray(report.competitor_focus)) {\n    throw new Error(\n      'competitor_focus must be an array'\n    );\n  }\n\n  for (const competitor of report.competitor_focus) {\n\n    validateSourceIds(\n      competitor.source_ids,\n      'competitor_focus'\n    );\n\n    const allowedEvidenceLevels = [\n      'sufficient',\n      'limited',\n      'insufficient'\n    ];\n\n    if (\n      !allowedEvidenceLevels.includes(\n        competitor.evidence_level\n      )\n    ) {\n      throw new Error(\n        `Invalid competitor evidence_level: ${competitor.evidence_level}`\n      );\n    }\n  }\n\n  // --------------------------------\n  // Risks\n  // --------------------------------\n\n  if (!Array.isArray(report.top_risks)) {\n    throw new Error(\n      'top_risks must be an array'\n    );\n  }\n\n  for (const risk of report.top_risks) {\n\n    validateSourceIds(\n      risk.source_ids,\n      'top_risks'\n    );\n\n    /*\n      Risk Impact را مدل حق ندارد تغییر دهد.\n      حداقل یکی از Citationها باید\n      همان Risk را در دیتاست داشته باشد.\n    */\n\n    let matchingRiskFound = false;\n\n    for (const sourceId of risk.source_ids) {\n\n      const evidence =\n        allowedSources.get(sourceId);\n\n      if (!evidence) continue;\n\n      if (evidence.risk_exists !== true) {\n        continue;\n      }\n\n      if (\n        String(evidence.impact_level) ===\n          String(risk.impact_level) &&\n        Number(evidence.impact_score) ===\n          Number(risk.impact_score)\n      ) {\n        matchingRiskFound = true;\n        break;\n      }\n    }\n\n    if (!matchingRiskFound) {\n      throw new Error(\n        `Risk impact does not match source evidence for \"${risk.title}\"`\n      );\n    }\n  }\n\n  // --------------------------------\n  // Opportunities\n  // --------------------------------\n\n  if (!Array.isArray(report.opportunities)) {\n    throw new Error(\n      'opportunities must be an array'\n    );\n  }\n\n  for (const opportunity of report.opportunities) {\n\n    validateSourceIds(\n      opportunity.source_ids,\n      'opportunities'\n    );\n\n    // حداقل یکی از Sourceها باید Opportunity داشته باشد\n    const supported =\n      opportunity.source_ids.some(sourceId => {\n\n        const evidence =\n          allowedSources.get(sourceId);\n\n        return evidence?.opportunity_exists === true;\n      });\n\n    if (!supported) {\n      throw new Error(\n        `Opportunity has no supporting evidence: \"${opportunity.title}\"`\n      );\n    }\n  }\n\n  // --------------------------------\n  // Recommended Actions\n  // --------------------------------\n\n  if (!Array.isArray(report.recommended_actions)) {\n    throw new Error(\n      'recommended_actions must be an array'\n    );\n  }\n\n  const allowedPriorities = [\n    'High',\n    'Medium',\n    'Low'\n  ];\n\n  for (const action of report.recommended_actions) {\n\n    validateSourceIds(\n      action.source_ids,\n      'recommended_actions'\n    );\n\n    if (\n      !allowedPriorities.includes(\n        action.priority\n      )\n    ) {\n      throw new Error(\n        `Invalid action priority: ${action.priority}`\n      );\n    }\n  }\n\n  // --------------------------------\n  // Limitations\n  // --------------------------------\n\n  if (!Array.isArray(report.limitations)) {\n    throw new Error(\n      'limitations must be an array'\n    );\n  }\n\n  output.push({\n    json: {\n      validation_status: 'valid',\n\n      allowed_source_ids:\n        [...allowedSources.keys()],\n\n      executive_report:\n        report\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4704,
+        336
+      ],
+      "id": "11dba0a6-eba9-48cc-99bc-131d38db1d99",
+      "name": "38 - Validate Executive Citations"
+    },
+    {
+      "parameters": {
+        "jsCode": "const validatedReport =\n  $input.first().json;\n\nconst config =\n  $('02 - OSINT Config').first().json;\n\nconst trustedItems =\n  $('35 - Merge Final Trusted Dataset').all();\n\nconst relevanceItems =\n  $('20 - Parse & Validate AI Relevance').all();\n\nconst executiveInput =\n  $('36 - Build Executive Brief Input').first().json;\n\n// -------------------------\n// Source Index\n// برای Citationهای قابل کلیک\n// -------------------------\n\nconst sources = trustedItems.map(item => {\n  const d = item.json;\n\n  return {\n    source_id: d.source_id,\n    title: d.title,\n    url: d.url,\n    source: d.source,\n    source_domain: d.source_domain,\n    published_date: d.published_date,\n\n    brand: d.primary_brand,\n    brand_fa: d.primary_brand_fa,\n\n    category: d.category,\n\n    confidence:\n      d.final_confidence_level || 'Low',\n\n    verification_status:\n      d.verification_status || 'unknown'\n  };\n});\n\nconst sourceIndex = {};\n\nfor (const source of sources) {\n  sourceIndex[source.source_id] = source;\n}\n\n// -------------------------\n// Human Review Queue\n// -------------------------\n\nconst needsReview = relevanceItems\n  .filter(item =>\n    item.json.final_relevance_status ===\n    'needs_review'\n  )\n  .map(item => ({\n    source_id: item.json.source_id,\n    title: item.json.title,\n    url: item.json.url,\n    source: item.json.source,\n\n    brand:\n      item.json.primary_brand,\n\n    brand_fa:\n      item.json.primary_brand_fa,\n\n    relevance_score:\n      item.json.ai_relevance_score,\n\n    reason:\n      item.json.ai_relevance_reason\n  }));\n\n// -------------------------\n// Irrelevant Audit\n// -------------------------\n\nconst irrelevantItems = relevanceItems\n  .filter(item =>\n    item.json.final_relevance_status ===\n    'irrelevant'\n  );\n\nconst relevantItems = relevanceItems\n  .filter(item =>\n    item.json.final_relevance_status ===\n    'relevant'\n  );\n\n// -------------------------\n// Final Payload\n// -------------------------\n\nreturn [\n  {\n    json: {\n\n      meta: {\n        report_title:\n          config.report_title,\n\n        company:\n          config.company.name,\n\n        company_fa:\n          config.company.name_fa,\n\n        lookback_days:\n          config.lookback_days,\n\n        generated_at:\n          new Date().toISOString(),\n\n        analysis_type:\n          'Commercial OSINT'\n      },\n\n      kpis: {\n        collected_after_dedup:\n          relevanceItems.length,\n\n        relevant:\n          relevantItems.length,\n\n        needs_review:\n          needsReview.length,\n\n        irrelevant_removed:\n          irrelevantItems.length,\n\n        trusted_articles:\n          trustedItems.length,\n\n        risks:\n          executiveInput.statistics?.risks?.total || 0,\n\n        opportunities:\n          executiveInput.statistics\n            ?.opportunities?.total || 0\n      },\n\n      statistics:\n        executiveInput.statistics,\n\n      executive_report:\n        validatedReport.executive_report,\n\n      sources,\n\n      source_index:\n        sourceIndex,\n\n      human_review:\n        needsReview\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4880,
+        336
+      ],
+      "id": "c638a833-f389-4e31-87a5-1ceca1a0ce56",
+      "name": "39 - Build Dashboard Payload"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst meta = data.meta || {};\nconst kpis = data.kpis || {};\nconst stats = data.statistics || {};\nconst report = data.executive_report || {};\nconst sources = data.sources || [];\nconst sourceIndex = data.source_index || {};\nconst humanReview = data.human_review || [];\n\n// --------------------------------------------------\n// Digikala Group Logo\n// --------------------------------------------------\n\nconst logoUrl =\n  'https://dmboard.media/wp-content/uploads/2025/03/1-23.png';\n\n// --------------------------------------------------\n// Helpers\n// --------------------------------------------------\n\nfunction esc(value) {\n  return String(value ?? '')\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;')\n    .replace(/'/g, '&#039;');\n}\n\nfunction safeUrl(value) {\n  const url = String(value || '').trim();\n\n  if (\n    url.startsWith('http://') ||\n    url.startsWith('https://')\n  ) {\n    return esc(url);\n  }\n\n  return '#';\n}\n\nfunction formatDate(value) {\n  if (!value) return '-';\n\n  try {\n    const date = new Date(value);\n\n    if (isNaN(date.getTime())) {\n      return esc(value);\n    }\n\n    return new Intl.DateTimeFormat('fa-IR', {\n      year: 'numeric',\n      month: 'short',\n      day: 'numeric'\n    }).format(date);\n\n  } catch {\n    return esc(value);\n  }\n}\n\nfunction citationLinks(ids = []) {\n\n  if (!Array.isArray(ids) || ids.length === 0) {\n    return `\n      <span class=\"citation muted\">\n        بدون منبع\n      </span>\n    `;\n  }\n\n  return ids.map(id => {\n\n    const source = sourceIndex[id];\n\n    if (!source) {\n      return `\n        <span class=\"citation invalid\">\n          ${esc(id)}\n        </span>\n      `;\n    }\n\n    return `\n      <a\n        class=\"citation\"\n        href=\"${safeUrl(source.url)}\"\n        target=\"_blank\"\n        rel=\"noopener noreferrer\"\n        title=\"${esc(source.title)}\"\n      >\n        ${esc(id)}\n      </a>\n    `;\n  }).join('');\n}\n\nfunction confidenceClass(value) {\n  const v = String(value || '').toLowerCase();\n\n  if (v === 'high') return 'high';\n  if (v === 'medium') return 'medium';\n\n  return 'low';\n}\n\nfunction impactClass(value) {\n  const v = String(value || '').toLowerCase();\n\n  if (v === 'high') return 'high';\n  if (v === 'medium') return 'medium';\n  if (v === 'low') return 'low';\n\n  return 'neutral';\n}\n\n// --------------------------------------------------\n// KPI Cards\n// --------------------------------------------------\n\nconst kpiCards = `\n  <div class=\"kpi-grid\">\n\n    <div class=\"kpi-card\">\n      <div class=\"kpi-label\">اخبار معتبر</div>\n      <div class=\"kpi-value\">\n        ${esc(kpis.trusted_articles ?? 0)}\n      </div>\n    </div>\n\n    <div class=\"kpi-card\">\n      <div class=\"kpi-label\">ریسک‌ها</div>\n      <div class=\"kpi-value\">\n        ${esc(kpis.risks ?? 0)}\n      </div>\n    </div>\n\n    <div class=\"kpi-card\">\n      <div class=\"kpi-label\">فرصت‌ها</div>\n      <div class=\"kpi-value\">\n        ${esc(kpis.opportunities ?? 0)}\n      </div>\n    </div>\n\n    <div class=\"kpi-card\">\n      <div class=\"kpi-label\">نیازمند بررسی</div>\n      <div class=\"kpi-value\">\n        ${esc(kpis.needs_review ?? 0)}\n      </div>\n    </div>\n\n    <div class=\"kpi-card\">\n      <div class=\"kpi-label\">\n        حذف‌شده به‌عنوان نامرتبط\n      </div>\n\n      <div class=\"kpi-value\">\n        ${esc(kpis.irrelevant_removed ?? 0)}\n      </div>\n    </div>\n\n  </div>\n`;\n\n// --------------------------------------------------\n// Executive Summary\n// --------------------------------------------------\n\nconst executiveSummary =\n  Array.isArray(report.executive_summary)\n    ? report.executive_summary.map(item => `\n        <div class=\"insight-card\">\n\n          <div class=\"insight-text\">\n            ${esc(item.text)}\n          </div>\n\n          <div class=\"citations\">\n            ${citationLinks(item.source_ids)}\n          </div>\n\n        </div>\n      `).join('')\n    : '';\n\n// --------------------------------------------------\n// Company Topics\n// --------------------------------------------------\n\nconst companyTopics =\n  Array.isArray(report.company_media_topics)\n    ? report.company_media_topics.map(item => `\n        <details class=\"accordion\">\n\n          <summary>\n            ${esc(item.topic)}\n          </summary>\n\n          <div class=\"accordion-body\">\n\n            <p>\n              ${esc(item.insight)}\n            </p>\n\n            <div class=\"citations\">\n              ${citationLinks(item.source_ids)}\n            </div>\n\n          </div>\n\n        </details>\n      `).join('')\n    : '';\n\n// --------------------------------------------------\n// Competitors\n// --------------------------------------------------\n\nconst competitors =\n  Array.isArray(report.competitor_focus)\n    ? report.competitor_focus.map(item => `\n        <div class=\"competitor-card\">\n\n          <div class=\"card-header\">\n\n            <strong>\n              ${esc(item.brand)}\n            </strong>\n\n            <span class=\"badge neutral\">\n              ${esc(item.evidence_level)}\n            </span>\n\n          </div>\n\n          <p>\n            ${esc(item.focus)}\n          </p>\n\n          <div class=\"citations\">\n            ${citationLinks(item.source_ids)}\n          </div>\n\n        </div>\n      `).join('')\n    : '';\n\n// --------------------------------------------------\n// Risks\n// --------------------------------------------------\n\nconst risks =\n  Array.isArray(report.top_risks)\n    ? report.top_risks.map(item => `\n        <div class=\"risk-card\">\n\n          <div class=\"card-header\">\n\n            <strong>\n              ${esc(item.title)}\n            </strong>\n\n            <span class=\"badge ${impactClass(item.impact_level)}\">\n              Impact:\n              ${esc(item.impact_level)}\n              (${esc(item.impact_score)})\n            </span>\n\n          </div>\n\n          <p>\n            ${esc(item.description)}\n          </p>\n\n          <div class=\"meta-row\">\n\n            <span>\n              نوع:\n              <strong>\n                ${esc(item.risk_type)}\n              </strong>\n            </span>\n\n            <span>\n              اطمینان:\n              <strong>\n                ${esc(item.confidence)}\n              </strong>\n            </span>\n\n          </div>\n\n          <div class=\"citations\">\n            ${citationLinks(item.source_ids)}\n          </div>\n\n        </div>\n      `).join('')\n    : '';\n\n// --------------------------------------------------\n// Opportunities\n// --------------------------------------------------\n\nconst opportunities =\n  Array.isArray(report.opportunities)\n    ? report.opportunities.map(item => `\n        <div class=\"opportunity-card\">\n\n          <div class=\"card-header\">\n\n            <strong>\n              ${esc(item.title)}\n            </strong>\n\n            <span class=\"badge high\">\n              ${esc(item.opportunity_type)}\n            </span>\n\n          </div>\n\n          <p>\n            ${esc(item.description)}\n          </p>\n\n          <div class=\"meta-row\">\n\n            <span>\n              اطمینان:\n              <strong>\n                ${esc(item.confidence)}\n              </strong>\n            </span>\n\n          </div>\n\n          <div class=\"citations\">\n            ${citationLinks(item.source_ids)}\n          </div>\n\n        </div>\n      `).join('')\n    : '';\n\n// --------------------------------------------------\n// Recommended Actions\n// --------------------------------------------------\n\nconst actions =\n  Array.isArray(report.recommended_actions)\n    ? report.recommended_actions.map(item => `\n        <div class=\"action-card\">\n\n          <div class=\"card-header\">\n\n            <strong>\n              ${esc(item.action)}\n            </strong>\n\n            <span class=\"badge ${impactClass(item.priority)}\">\n              اولویت ${esc(item.priority)}\n            </span>\n\n          </div>\n\n          <p>\n            ${esc(item.rationale)}\n          </p>\n\n          <div class=\"citations\">\n            ${citationLinks(item.source_ids)}\n          </div>\n\n        </div>\n      `).join('')\n    : '';\n\n// --------------------------------------------------\n// Limitations\n// --------------------------------------------------\n\nconst limitations =\n  Array.isArray(report.limitations)\n    ? report.limitations.map(item => `\n        <li>\n          ${esc(item)}\n        </li>\n      `).join('')\n    : '';\n\n// --------------------------------------------------\n// Human Review\n// --------------------------------------------------\n\nconst humanReviewHtml =\n  humanReview.length > 0\n    ? humanReview.map(item => `\n        <div class=\"review-card\">\n\n          <div class=\"card-header\">\n\n            <strong>\n              ${esc(item.title)}\n            </strong>\n\n            <span class=\"badge medium\">\n              نیازمند بررسی\n            </span>\n\n          </div>\n\n          <p>\n            ${esc(item.reason)}\n          </p>\n\n          <div class=\"meta-row\">\n\n            <span>\n              برند:\n              ${esc(item.brand_fa)}\n            </span>\n\n            <span>\n              Relevance:\n              ${esc(item.relevance_score)}\n            </span>\n\n          </div>\n\n          <a\n            class=\"source-button\"\n            href=\"${safeUrl(item.url)}\"\n            target=\"_blank\"\n            rel=\"noopener noreferrer\"\n          >\n            مشاهده منبع\n          </a>\n\n        </div>\n      `).join('')\n    : `\n      <div class=\"empty-state\">\n        در حال حاضر موردی برای بررسی انسانی وجود ندارد.\n      </div>\n    `;\n\n// --------------------------------------------------\n// Sources Table\n// --------------------------------------------------\n\nconst sourcesRows = sources.map(source => `\n  <tr>\n\n    <td>\n      <strong>\n        ${esc(source.source_id)}\n      </strong>\n    </td>\n\n    <td class=\"title-cell\">\n      ${esc(source.title)}\n    </td>\n\n    <td>\n      ${esc(source.source)}\n    </td>\n\n    <td>\n      ${esc(source.brand_fa)}\n    </td>\n\n    <td>\n      ${formatDate(source.published_date)}\n    </td>\n\n    <td>\n      <span class=\"badge ${confidenceClass(source.confidence)}\">\n        ${esc(source.confidence)}\n      </span>\n    </td>\n\n    <td>\n      <a\n        class=\"source-button\"\n        href=\"${safeUrl(source.url)}\"\n        target=\"_blank\"\n        rel=\"noopener noreferrer\"\n      >\n        باز کردن\n      </a>\n    </td>\n\n  </tr>\n`).join('');\n\n// --------------------------------------------------\n// HTML\n// --------------------------------------------------\n\nconst html = `\n<!DOCTYPE html>\n\n<html lang=\"fa\" dir=\"rtl\">\n\n<head>\n\n<meta charset=\"UTF-8\">\n\n<meta\n  name=\"viewport\"\n  content=\"width=device-width, initial-scale=1.0\"\n/>\n\n<title>\n  ${esc(meta.report_title || 'OSINT Report')}\n</title>\n\n<style>\n\n* {\n  box-sizing: border-box;\n}\n\nhtml {\n  scroll-behavior: smooth;\n}\n\nbody {\n  margin: 0;\n\n  background: #f4f6f8;\n  color: #1f2937;\n\n  font-family:\n    Vazirmatn,\n    Tahoma,\n    \"Segoe UI\",\n    Arial,\n    sans-serif;\n\n  direction: rtl;\n  text-align: right;\n\n  line-height: 1.8;\n\n  overflow-wrap: anywhere;\n  word-break: normal;\n}\n\n.container {\n  width: min(1180px, calc(100% - 32px));\n\n  margin:\n    32px auto 60px;\n}\n\n/* --------------------------------------------------\n   Hero / Header\n-------------------------------------------------- */\n\n.hero {\n  background: #111827;\n  color: white;\n\n  border-radius: 20px;\n\n  padding: 30px;\n\n  margin-bottom: 24px;\n\n  overflow: hidden;\n}\n\n.hero-main {\n  display: flex;\n\n  align-items: center;\n  justify-content: space-between;\n\n  gap: 36px;\n}\n\n.hero-content {\n  flex: 1;\n\n  min-width: 0;\n}\n\n.hero-logo {\n  flex: 0 0 auto;\n\n  width:\n    clamp(220px, 29vw, 360px);\n\n  display: flex;\n\n  align-items: center;\n  justify-content: center;\n\n  min-width: 0;\n}\n\n.hero-logo img {\n  display: block;\n\n  width: 100%;\n  height: auto;\n\n  max-height: 145px;\n\n  object-fit: contain;\n\n  /*\n    لوگو سفید روی زمینه مشکی است.\n    Screen باعث می‌شود زمینه مشکی\n    با سرمه‌ای هدر ترکیب شود.\n  */\n  mix-blend-mode: screen;\n\n  filter:\n    brightness(1.05)\n    contrast(1.05);\n}\n\n.hero h1 {\n  margin:\n    0 0 10px;\n\n  font-size:\n    clamp(22px, 4vw, 34px);\n\n  line-height: 1.5;\n\n  overflow-wrap: anywhere;\n}\n\n.hero p {\n  margin:\n    5px 0;\n\n  opacity: .82;\n}\n\n/* --------------------------------------------------\n   Navigation\n-------------------------------------------------- */\n\n.nav {\n  margin-top: 24px;\n\n  padding-top: 18px;\n\n  border-top:\n    1px solid rgba(255,255,255,.10);\n\n  display: flex;\n\n  flex-wrap: wrap;\n\n  gap: 8px;\n}\n\n.nav a {\n  color: white;\n\n  text-decoration: none;\n\n  padding:\n    7px 12px;\n\n  border-radius: 10px;\n\n  background:\n    rgba(255,255,255,.12);\n\n  font-size: 13px;\n\n  transition:\n    background .2s ease;\n}\n\n.nav a:hover {\n  background:\n    rgba(255,255,255,.20);\n}\n\n/* --------------------------------------------------\n   Sections\n-------------------------------------------------- */\n\n.section {\n  background: white;\n\n  border-radius: 18px;\n\n  padding: 24px;\n\n  margin-bottom: 20px;\n\n  box-shadow:\n    0 2px 10px rgba(0,0,0,.035);\n}\n\n.section-title {\n  margin:\n    0 0 18px;\n\n  font-size: 20px;\n}\n\n/* --------------------------------------------------\n   KPI\n-------------------------------------------------- */\n\n.kpi-grid {\n  display: grid;\n\n  grid-template-columns:\n    repeat(\n      auto-fit,\n      minmax(160px, 1fr)\n    );\n\n  gap: 12px;\n\n  margin-bottom: 20px;\n}\n\n.kpi-card {\n  background: white;\n\n  border:\n    1px solid #e5e7eb;\n\n  border-radius: 16px;\n\n  padding: 18px;\n\n  min-width: 0;\n\n  box-shadow:\n    0 2px 8px rgba(0,0,0,.025);\n}\n\n.kpi-label {\n  color: #6b7280;\n\n  font-size: 13px;\n}\n\n.kpi-value {\n  margin-top: 5px;\n\n  font-size: 28px;\n\n  font-weight: 700;\n}\n\n/* --------------------------------------------------\n   Cards\n-------------------------------------------------- */\n\n.insight-card,\n.competitor-card,\n.risk-card,\n.opportunity-card,\n.action-card,\n.review-card {\n\n  border:\n    1px solid #e5e7eb;\n\n  border-radius: 15px;\n\n  padding: 18px;\n\n  margin-bottom: 12px;\n\n  min-width: 0;\n}\n\n.risk-card {\n  border-right:\n    4px solid #ef4444;\n}\n\n.opportunity-card {\n  border-right:\n    4px solid #10b981;\n}\n\n.action-card {\n  border-right:\n    4px solid #3b82f6;\n}\n\n.review-card {\n  border-right:\n    4px solid #f59e0b;\n}\n\n.card-header {\n  display: flex;\n\n  align-items: flex-start;\n  justify-content: space-between;\n\n  gap: 12px;\n\n  flex-wrap: wrap;\n}\n\n.card-header strong {\n  min-width: 0;\n\n  flex: 1;\n\n  overflow-wrap: anywhere;\n}\n\n/* --------------------------------------------------\n   Badges\n-------------------------------------------------- */\n\n.badge {\n  display: inline-flex;\n\n  align-items: center;\n\n  padding:\n    4px 10px;\n\n  border-radius: 999px;\n\n  font-size: 12px;\n\n  white-space: nowrap;\n}\n\n.badge.high {\n  background: #dcfce7;\n  color: #166534;\n}\n\n.badge.medium {\n  background: #fef3c7;\n  color: #92400e;\n}\n\n.badge.low {\n  background: #fee2e2;\n  color: #991b1b;\n}\n\n.badge.neutral {\n  background: #e5e7eb;\n  color: #374151;\n}\n\n/* --------------------------------------------------\n   Meta\n-------------------------------------------------- */\n\n.meta-row {\n  display: flex;\n\n  flex-wrap: wrap;\n\n  gap:\n    10px 20px;\n\n  color: #6b7280;\n\n  font-size: 13px;\n\n  margin-top: 10px;\n}\n\n/* --------------------------------------------------\n   Citations\n-------------------------------------------------- */\n\n.citations {\n  display: flex;\n\n  flex-wrap: wrap;\n\n  gap: 7px;\n\n  margin-top: 12px;\n}\n\n.citation {\n  background: #eff6ff;\n\n  color: #1d4ed8;\n\n  border-radius: 8px;\n\n  padding:\n    4px 8px;\n\n  font-size: 12px;\n\n  font-weight: 600;\n\n  text-decoration: none;\n}\n\n.citation:hover {\n  background: #dbeafe;\n}\n\n.citation.invalid {\n  background: #fee2e2;\n\n  color: #991b1b;\n}\n\n.citation.muted {\n  background: #f3f4f6;\n\n  color: #6b7280;\n}\n\n/* --------------------------------------------------\n   Accordion\n-------------------------------------------------- */\n\n.accordion {\n  border:\n    1px solid #e5e7eb;\n\n  border-radius: 14px;\n\n  margin-bottom: 10px;\n\n  overflow: hidden;\n}\n\n.accordion summary {\n  cursor: pointer;\n\n  padding:\n    15px 18px;\n\n  font-weight: 700;\n\n  background: #fafafa;\n}\n\n.accordion-body {\n  padding:\n    4px 18px 18px;\n}\n\n/* --------------------------------------------------\n   Buttons\n-------------------------------------------------- */\n\n.source-button {\n  display: inline-block;\n\n  background: #111827;\n\n  color: white;\n\n  text-decoration: none;\n\n  padding:\n    6px 11px;\n\n  border-radius: 8px;\n\n  font-size: 12px;\n\n  white-space: nowrap;\n}\n\n.source-button:hover {\n  opacity: .85;\n}\n\n/* --------------------------------------------------\n   Table\n-------------------------------------------------- */\n\n.table-wrapper {\n  width: 100%;\n\n  overflow-x: auto;\n\n  border:\n    1px solid #e5e7eb;\n\n  border-radius: 14px;\n}\n\ntable {\n  width: 100%;\n\n  border-collapse: collapse;\n\n  min-width: 900px;\n}\n\nth,\ntd {\n  padding:\n    12px 14px;\n\n  border-bottom:\n    1px solid #e5e7eb;\n\n  text-align: right;\n\n  vertical-align: middle;\n\n  font-size: 13px;\n}\n\nth {\n  background: #f9fafb;\n\n  position: sticky;\n\n  top: 0;\n\n  z-index: 1;\n}\n\n.title-cell {\n  max-width: 360px;\n\n  white-space: normal;\n\n  overflow-wrap: anywhere;\n}\n\n/* --------------------------------------------------\n   Empty State\n-------------------------------------------------- */\n\n.empty-state {\n  padding: 18px;\n\n  background: #f9fafb;\n\n  border-radius: 12px;\n\n  color: #6b7280;\n}\n\n/* --------------------------------------------------\n   Footer\n-------------------------------------------------- */\n\n.footer {\n  text-align: center;\n\n  color: #6b7280;\n\n  font-size: 12px;\n\n  margin-top: 25px;\n}\n\n/* --------------------------------------------------\n   Responsive\n-------------------------------------------------- */\n\n@media (max-width: 700px) {\n\n  .container {\n    width:\n      min(100% - 18px, 1180px);\n\n    margin-top: 12px;\n  }\n\n  .hero,\n  .section {\n    border-radius: 14px;\n\n    padding: 18px;\n  }\n\n  .hero-main {\n    flex-direction: column;\n\n    align-items: stretch;\n\n    gap: 20px;\n  }\n\n  .hero-logo {\n    width:\n      min(280px, 80%);\n\n    margin:\n      8px auto 0;\n  }\n\n  .hero-logo img {\n    max-height: 110px;\n  }\n\n  .kpi-grid {\n    grid-template-columns:\n      repeat(\n        2,\n        minmax(0, 1fr)\n      );\n  }\n\n  .card-header {\n    flex-direction: column;\n  }\n\n  .nav {\n    justify-content: flex-start;\n  }\n}\n\n@media (max-width: 420px) {\n\n  .kpi-grid {\n    grid-template-columns:\n      1fr;\n  }\n\n  .hero-logo {\n    width:\n      min(240px, 90%);\n  }\n}\n\n</style>\n\n</head>\n\n<body>\n\n<div class=\"container\">\n\n  <!-- ------------------------------------------------\n       Header\n  ------------------------------------------------- -->\n\n  <header class=\"hero\">\n\n    <div class=\"hero-main\">\n\n      <div class=\"hero-content\">\n\n        <h1>\n          ${esc(meta.report_title)}\n        </h1>\n\n        <p>\n          شرکت:\n          <strong>\n            ${esc(meta.company_fa)}\n          </strong>\n        </p>\n\n        <p>\n          بازه تحلیل:\n          ${esc(meta.lookback_days)}\n          روز اخیر\n        </p>\n\n        <p>\n          تولید گزارش:\n          ${formatDate(meta.generated_at)}\n        </p>\n\n      </div>\n\n      <div class=\"hero-logo\">\n\n        <img\n          src=\"${safeUrl(logoUrl)}\"\n          alt=\"لوگوی گروه دیجی‌کالا\"\n          loading=\"eager\"\n        />\n\n      </div>\n\n    </div>\n\n    <nav class=\"nav\">\n\n      <a href=\"#summary\">\n        خلاصه مدیریتی\n      </a>\n\n      <a href=\"#topics\">\n        موضوعات رسانه‌ای\n      </a>\n\n      <a href=\"#competitors\">\n        رقبا\n      </a>\n\n      <a href=\"#risks\">\n        ریسک‌ها\n      </a>\n\n      <a href=\"#opportunities\">\n        فرصت‌ها\n      </a>\n\n      <a href=\"#actions\">\n        اقدامات\n      </a>\n\n      <a href=\"#sources\">\n        منابع\n      </a>\n\n    </nav>\n\n  </header>\n\n  <!-- KPI -->\n\n  ${kpiCards}\n\n  <!-- Executive Summary -->\n\n  <section\n    class=\"section\"\n    id=\"summary\"\n  >\n\n    <h2 class=\"section-title\">\n      خلاصه مدیریتی\n    </h2>\n\n    ${executiveSummary}\n\n  </section>\n\n  <!-- Media Topics -->\n\n  <section\n    class=\"section\"\n    id=\"topics\"\n  >\n\n    <h2 class=\"section-title\">\n      موضوعات رسانه‌ای دیجی‌کالا\n    </h2>\n\n    ${companyTopics}\n\n  </section>\n\n  <!-- Competitors -->\n\n  <section\n    class=\"section\"\n    id=\"competitors\"\n  >\n\n    <h2 class=\"section-title\">\n      تمرکز رقبا\n    </h2>\n\n    ${\n      competitors ||\n      `\n        <div class=\"empty-state\">\n          شواهد کافی درباره تمرکز رقبا در بازه مورد بررسی وجود ندارد.\n        </div>\n      `\n    }\n\n  </section>\n\n  <!-- Risks -->\n\n  <section\n    class=\"section\"\n    id=\"risks\"\n  >\n\n    <h2 class=\"section-title\">\n      ریسک‌های کلیدی\n    </h2>\n\n    ${\n      risks ||\n      `\n        <div class=\"empty-state\">\n          ریسک قابل گزارش شناسایی نشد.\n        </div>\n      `\n    }\n\n  </section>\n\n  <!-- Opportunities -->\n\n  <section\n    class=\"section\"\n    id=\"opportunities\"\n  >\n\n    <h2 class=\"section-title\">\n      فرصت‌های شناسایی‌شده\n    </h2>\n\n    ${\n      opportunities ||\n      `\n        <div class=\"empty-state\">\n          فرصت معناداری شناسایی نشد.\n        </div>\n      `\n    }\n\n  </section>\n\n  <!-- Actions -->\n\n  <section\n    class=\"section\"\n    id=\"actions\"\n  >\n\n    <h2 class=\"section-title\">\n      اقدامات پیشنهادی\n    </h2>\n\n    ${\n      actions ||\n      `\n        <div class=\"empty-state\">\n          اقدام مدیریتی خاصی پیشنهاد نشده است.\n        </div>\n      `\n    }\n\n  </section>\n\n  <!-- Human Review -->\n\n  <section\n    class=\"section\"\n    id=\"human-review\"\n  >\n\n    <h2 class=\"section-title\">\n      نیازمند بررسی انسانی\n    </h2>\n\n    ${humanReviewHtml}\n\n  </section>\n\n  <!-- Limitations -->\n\n  <section\n    class=\"section\"\n    id=\"limitations\"\n  >\n\n    <h2 class=\"section-title\">\n      محدودیت‌های تحلیل\n    </h2>\n\n    <ul>\n      ${limitations}\n    </ul>\n\n  </section>\n\n  <!-- Sources -->\n\n  <section\n    class=\"section\"\n    id=\"sources\"\n  >\n\n    <h2 class=\"section-title\">\n      منابع و شواهد\n    </h2>\n\n    <div class=\"table-wrapper\">\n\n      <table>\n\n        <thead>\n\n          <tr>\n\n            <th>\n              Source ID\n            </th>\n\n            <th>\n              عنوان\n            </th>\n\n            <th>\n              منبع\n            </th>\n\n            <th>\n              برند\n            </th>\n\n            <th>\n              تاریخ\n            </th>\n\n            <th>\n              Confidence\n            </th>\n\n            <th>\n              لینک\n            </th>\n\n          </tr>\n\n        </thead>\n\n        <tbody>\n\n          ${sourcesRows}\n\n        </tbody>\n\n      </table>\n\n    </div>\n\n  </section>\n\n  <!-- Footer -->\n\n  <div class=\"footer\">\n\n    Commercial OSINT\n    •\n    Public Sources Only\n    •\n    ${esc(meta.company_fa)}\n\n  </div>\n\n</div>\n\n</body>\n\n</html>\n`;\n\n// --------------------------------------------------\n// Output\n// --------------------------------------------------\n\nreturn [\n  {\n    json: {\n\n      html,\n\n      dashboard_meta: {\n\n        title:\n          meta.report_title,\n\n        generated_at:\n          meta.generated_at,\n\n        sources_count:\n          sources.length,\n\n        logo_url:\n          logoUrl\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5056,
+        336
+      ],
+      "id": "2c168a51-ef81-4a74-9f11-270dd6c8da8e",
+      "name": "40 - Generate Management Dashboard"
+    },
+    {
+      "parameters": {
+        "path": "digikala-osint-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -752,
+        80
+      ],
+      "id": "4bae0f3f-7bca-4c58-80af-c4280ff90c0d",
+      "name": "41 - Dashboard Webhook",
+      "webhookId": "REPLACE_ME"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        5248,
+        336
+      ],
+      "id": "f566b899-13f2-4bad-a808-151df95d7efe",
+      "name": "42 - Serve Dashboard"
+    },
+    {
+      "parameters": {
+        "url": "https://www.khabaronline.ir/rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -288,
+        96
+      ],
+      "id": "ac8cb0ed-5b95-4e6e-ad21-a275b911cb03",
+      "name": "05 - RSS - KhabarOnline"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst config = $('02 - OSINT Config').first().json;\n\nconst lookbackDays = Number(config.lookback_days || 7);\n\nconst now = new Date();\nconst cutoffDate = new Date(\n  now.getTime() - (lookbackDays * 24 * 60 * 60 * 1000)\n);\n\nconst brands = [\n  {\n    name: config.company.name,\n    name_fa: config.company.name_fa,\n    type: 'company',\n    keywords: config.company.keywords || []\n  },\n  ...config.competitors.map(c => ({\n    name: c.name,\n    name_fa: c.name_fa,\n    type: 'competitor',\n    keywords: c.keywords || []\n  }))\n];\n\nconst results = [];\n\nfor (const item of items) {\n  const data = item.json;\n\n  const title = String(data.title || '').trim();\n\n  const content = String(\n    data.contentSnippet ||\n    data.content ||\n    data.description ||\n    ''\n  ).trim();\n\n  const url = String(\n    data.link ||\n    data.url ||\n    ''\n  ).trim();\n\n  const publishedRaw =\n    data.isoDate ||\n    data.pubDate ||\n    data.published ||\n    '';\n\n  const publishedDate = new Date(publishedRaw);\n\n  // حذف رکورد ناقص\n  if (!title || !url || !publishedRaw) {\n    continue;\n  }\n\n  // فقط بازه زمانی Config\n  if (\n    isNaN(publishedDate.getTime()) ||\n    publishedDate < cutoffDate ||\n    publishedDate > now\n  ) {\n    continue;\n  }\n\n  const searchableText =\n    `${title} ${content}`.toLowerCase();\n\n  const matchedBrands = brands.filter(brand =>\n    brand.keywords.some(keyword =>\n      searchableText.includes(\n        String(keyword).toLowerCase()\n      )\n    )\n  );\n\n  if (matchedBrands.length === 0) {\n    continue;\n  }\n\n  results.push({\n    json: {\n      title,\n      url,\n\n      source: 'KhabarOnline',\n      source_domain: 'KhabarOnline.ir',\n\n      published_date: publishedDate.toISOString(),\n\n      matched_brands: matchedBrands.map(b => ({\n        name: b.name,\n        name_fa: b.name_fa,\n        type: b.type\n      })),\n\n      primary_brand: matchedBrands[0].name,\n      primary_brand_fa: matchedBrands[0].name_fa,\n\n      content,\n\n      collection_source: 'RSS',\n      collection_channel: 'KhabarOnline RSS'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        96
+      ],
+      "id": "81cd6987-2f63-42b6-a7ed-78b0f551a5e5",
+      "name": "08 - Filter & Normalize - KhabarOnline"
+    },
+    {
+      "parameters": {
+        "url": "https://www.tabnak.ir/fa/rss/allnews",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -288,
+        272
+      ],
+      "id": "3be21761-ab77-4cc1-93a0-a6b09fab8395",
+      "name": "06 - RSS - Tabnak"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst config = $('02 - OSINT Config').first().json;\n\nconst lookbackDays = Number(config.lookback_days || 7);\n\nconst now = new Date();\nconst cutoffDate = new Date(\n  now.getTime() - (lookbackDays * 24 * 60 * 60 * 1000)\n);\n\nconst brands = [\n  {\n    name: config.company.name,\n    name_fa: config.company.name_fa,\n    type: 'company',\n    keywords: config.company.keywords || []\n  },\n  ...config.competitors.map(c => ({\n    name: c.name,\n    name_fa: c.name_fa,\n    type: 'competitor',\n    keywords: c.keywords || []\n  }))\n];\n\nconst results = [];\n\nfor (const item of items) {\n  const data = item.json;\n\n  const title = String(data.title || '').trim();\n\n  const content = String(\n    data.contentSnippet ||\n    data.content ||\n    data.description ||\n    ''\n  ).trim();\n\n  const url = String(\n    data.link ||\n    data.url ||\n    ''\n  ).trim();\n\n  const publishedRaw =\n    data.isoDate ||\n    data.pubDate ||\n    data.published ||\n    '';\n\n  const publishedDate = new Date(publishedRaw);\n\n  if (!title || !url || !publishedRaw) {\n    continue;\n  }\n\n  if (\n    isNaN(publishedDate.getTime()) ||\n    publishedDate < cutoffDate ||\n    publishedDate > now\n  ) {\n    continue;\n  }\n\n  const searchableText =\n    `${title} ${content}`.toLowerCase();\n\n  const matchedBrands = brands.filter(brand =>\n    brand.keywords.some(keyword =>\n      searchableText.includes(\n        String(keyword).toLowerCase()\n      )\n    )\n  );\n\n  if (matchedBrands.length === 0) {\n    continue;\n  }\n\n  results.push({\n    json: {\n      title,\n      url,\n\n      source: 'tabnak',\n      source_domain: 'tabnak.ir',\n\n      published_date: publishedDate.toISOString(),\n\n      matched_brands: matchedBrands.map(b => ({\n        name: b.name,\n        name_fa: b.name_fa,\n        type: b.type\n      })),\n\n      primary_brand: matchedBrands[0].name,\n      primary_brand_fa: matchedBrands[0].name_fa,\n\n      content,\n\n      collection_source: 'RSS',\n      collection_channel: 'Tabnak RSS'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        272
+      ],
+      "id": "b4fb2245-7533-4749-ae67-f0bf669458a6",
+      "name": "09 - Filter & Normalize - Tabnak"
+    },
+    {
+      "parameters": {
+        "url": "https://www.zoomit.ir/feed/",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -288,
+        464
+      ],
+      "id": "b6ad3c70-cb4f-4524-827e-7997313ae99f",
+      "name": "07 - RSS - Zoomit"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst config = $('02 - OSINT Config').first().json;\n\nconst lookbackDays = Number(config.lookback_days || 7);\n\nconst now = new Date();\nconst cutoffDate = new Date(\n  now.getTime() - (lookbackDays * 24 * 60 * 60 * 1000)\n);\n\nconst brands = [\n  {\n    name: config.company.name,\n    name_fa: config.company.name_fa,\n    type: 'company',\n    keywords: config.company.keywords || []\n  },\n  ...config.competitors.map(c => ({\n    name: c.name,\n    name_fa: c.name_fa,\n    type: 'competitor',\n    keywords: c.keywords || []\n  }))\n];\n\nconst results = [];\n\nfor (const item of items) {\n  const data = item.json;\n\n  const title = String(data.title || '').trim();\n\n  const content = String(\n    data.contentSnippet ||\n    data.content ||\n    data.description ||\n    ''\n  ).trim();\n\n  const url = String(\n    data.link ||\n    data.url ||\n    ''\n  ).trim();\n\n  const publishedRaw =\n    data.isoDate ||\n    data.pubDate ||\n    data.published ||\n    '';\n\n  const publishedDate = new Date(publishedRaw);\n\n  if (!title || !url || !publishedRaw) {\n    continue;\n  }\n\n  if (\n    isNaN(publishedDate.getTime()) ||\n    publishedDate < cutoffDate ||\n    publishedDate > now\n  ) {\n    continue;\n  }\n\n  const searchableText =\n    `${title} ${content}`.toLowerCase();\n\n  const matchedBrands = brands.filter(brand =>\n    brand.keywords.some(keyword =>\n      searchableText.includes(\n        String(keyword).toLowerCase()\n      )\n    )\n  );\n\n  if (matchedBrands.length === 0) {\n    continue;\n  }\n\n  results.push({\n    json: {\n      title,\n      url,\n\n      source: 'Zoomit News',\n      source_domain: 'zoomit.ir',\n\n      published_date: publishedDate.toISOString(),\n\n      matched_brands: matchedBrands.map(b => ({\n        name: b.name,\n        name_fa: b.name_fa,\n        type: b.type\n      })),\n\n      primary_brand: matchedBrands[0].name,\n      primary_brand_fa: matchedBrands[0].name_fa,\n\n      content,\n\n      collection_source: 'RSS',\n      collection_channel: 'Zoomit RSS'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        464
+      ],
+      "id": "eb4ef613-9a68-4808-a00a-54d7b445678f",
+      "name": "10 - Filter & Normalize - Zoomit"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 - Manual Start": {
+      "main": [
+        [
+          {
+            "node": "02 - OSINT Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 - OSINT Config": {
+      "main": [
+        [
+          {
+            "node": "03 - RSS - Mehr",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "07 - RSS - Zoomit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "11 - Build Tavily Search Jobs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "05 - RSS - KhabarOnline",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "06 - RSS - Tabnak",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 - RSS - Mehr": {
+      "main": [
+        [
+          {
+            "node": "04 - Filter & Normalize - Mehr",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 - Tavily Search - Brands": {
+      "main": [
+        [
+          {
+            "node": "13 - Split & Normalize - Tavily",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 - Build Tavily Search Jobs": {
+      "main": [
+        [
+          {
+            "node": "12 - Tavily Search - Brands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 - Split & Normalize - Tavily": {
+      "main": [
+        [
+          {
+            "node": "14 - Relevance Pre-Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 - Filter & Normalize - Mehr": {
+      "main": [
+        [
+          {
+            "node": "15 - Merge News Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 - Relevance Pre-Filter": {
+      "main": [
+        [
+          {
+            "node": "15 - Merge News Sources",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "15 - Merge News Sources": {
+      "main": [
+        [
+          {
+            "node": "16 - Deduplicate News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16 - Deduplicate News": {
+      "main": [
+        [
+          {
+            "node": "17 - Validate & Assign Source IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "17 - Validate & Assign Source IDs": {
+      "main": [
+        [
+          {
+            "node": "18 - Build Relevance Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18 - Build Relevance Batches": {
+      "main": [
+        [
+          {
+            "node": "19 - AI Semantic Relevance Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19A - OpenRouter Model - Relevance": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "19 - AI Semantic Relevance Check",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19 - AI Semantic Relevance Check": {
+      "main": [
+        [
+          {
+            "node": "20 - Parse & Validate AI Relevance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 - Parse & Validate AI Relevance": {
+      "main": [
+        [
+          {
+            "node": "21 - Route by Relevance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 - Route by Relevance": {
+      "main": [
+        [
+          {
+            "node": "22 - Build Analysis Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 - Build Analysis Batches": {
+      "main": [
+        [
+          {
+            "node": "23 - AI Business Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23A - OpenRouter Model - Analysis": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "23 - AI Business Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23 - AI Business Analysis": {
+      "main": [
+        [
+          {
+            "node": "24 - Validate Analysis & Calculate Impact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24 - Validate Analysis & Calculate Impact": {
+      "main": [
+        [
+          {
+            "node": "25 - Evidence & Confidence Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "25 - Evidence & Confidence Engine": {
+      "main": [
+        [
+          {
+            "node": "26 - Route Verification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "26 - Route Verification": {
+      "main": [
+        [
+          {
+            "node": "27 - Build Verification Queries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "34 - Finalize No Verification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "27 - Build Verification Queries": {
+      "main": [
+        [
+          {
+            "node": "28 - Tavily Cross Validation API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "28 - Tavily Cross Validation API": {
+      "main": [
+        [
+          {
+            "node": "29 - Filter Verification Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "29 - Filter Verification Sources": {
+      "main": [
+        [
+          {
+            "node": "30 - Route Verification Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "30 - Route Verification Evidence": {
+      "main": [
+        [
+          {
+            "node": "32 - AI Evidence Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "31 - Finalize No Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "31 - Finalize No Evidence": {
+      "main": [
+        [
+          {
+            "node": "35 - Merge Final Trusted Dataset",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "32A - OpenRouter Model - Evidence": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "32 - AI Evidence Check",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "32 - AI Evidence Check": {
+      "main": [
+        [
+          {
+            "node": "33 - Validate Evidence & Finalize Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "34 - Finalize No Verification": {
+      "main": [
+        [
+          {
+            "node": "35 - Merge Final Trusted Dataset",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "33 - Validate Evidence & Finalize Confidence": {
+      "main": [
+        [
+          {
+            "node": "35 - Merge Final Trusted Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "35 - Merge Final Trusted Dataset": {
+      "main": [
+        [
+          {
+            "node": "36 - Build Executive Brief Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "36 - Build Executive Brief Input": {
+      "main": [
+        [
+          {
+            "node": "37 - AI Executive Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "37A - OpenRouter Model - Executive": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "37 - AI Executive Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "37 - AI Executive Analysis": {
+      "main": [
+        [
+          {
+            "node": "38 - Validate Executive Citations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "38 - Validate Executive Citations": {
+      "main": [
+        [
+          {
+            "node": "39 - Build Dashboard Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "39 - Build Dashboard Payload": {
+      "main": [
+        [
+          {
+            "node": "40 - Generate Management Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "41 - Dashboard Webhook": {
+      "main": [
+        [
+          {
+            "node": "02 - OSINT Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "40 - Generate Management Dashboard": {
+      "main": [
+        [
+          {
+            "node": "42 - Serve Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 - RSS - KhabarOnline": {
+      "main": [
+        [
+          {
+            "node": "08 - Filter & Normalize - KhabarOnline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 - Filter & Normalize - KhabarOnline": {
+      "main": [
+        [
+          {
+            "node": "15 - Merge News Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "06 - RSS - Tabnak": {
+      "main": [
+        [
+          {
+            "node": "09 - Filter & Normalize - Tabnak",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 - Filter & Normalize - Tabnak": {
+      "main": [
+        [
+          {
+            "node": "15 - Merge News Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "07 - RSS - Zoomit": {
+      "main": [
+        [
+          {
+            "node": "10 - Filter & Normalize - Zoomit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 - Filter & Normalize - Zoomit": {
+      "main": [
+        [
+          {
+            "node": "15 - Merge News Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "REPLACE_ME",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "REPLACE_ME"
+  },
+  "nodeGroups": [],
+  "id": "REPLACE_ME",
+  "tags": []
+}
